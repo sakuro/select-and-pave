@@ -1,0 +1,90 @@
+name: Release Publish
+
+# This workflow handles the actual MOD publishing after PR merge.
+# Most validations are already performed by the Release Validation workflow.
+
+env:
+  MOD_NAME: ${{ github.event.repository.name }}
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  publish-release:
+    if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'release-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # Required for GitHub Release creation
+
+    environment: release   # Links to MOD Portal API key in protected environment
+
+    steps:
+    - name: Extract version from branch name
+      id: version
+      env:
+        BRANCH_NAME: ${{ github.head_ref }}
+      run: |
+        VERSION=${BRANCH_NAME#release-v}
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+    - name: Checkout release tag
+      uses: actions/checkout@v5
+      with:
+        ref: ${{ steps.version.outputs.tag }}
+        fetch-depth: 0
+
+    - name: Verify version consistency
+      env:
+        EXPECTED_VERSION: ${{ steps.version.outputs.version }}
+      run: |
+        FILE_VERSION="$(jq -r '.version' info.json)"
+        if [ "$FILE_VERSION" != "$EXPECTED_VERSION" ]; then
+          echo "❌ Error: Version mismatch. File: $FILE_VERSION, Expected: $EXPECTED_VERSION"
+          exit 1
+        fi
+        echo "✅ Version consistency verified: $FILE_VERSION"
+
+    - name: Set git user
+      uses: git-actions/set-user@v1
+
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        bundler-cache: true
+
+    - name: Build and upload MOD to Factorio MOD portal
+      env:
+        FACTORIO_API_KEY: ${{ secrets.FACTORIO_API_KEY }}
+      run: bundle exec rake release:portal
+
+    - name: Create GitHub Release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: bundle exec rake release:github
+
+    - name: Checkout main branch
+      run: git checkout main
+
+    - name: Add Unreleased section to changelog.txt
+      run: |
+        { printf -- '-%.0s' {1..99}; printf '\nVersion: Unreleased\n'; cat changelog.txt; } > changelog.txt.tmp
+        mv changelog.txt.tmp changelog.txt
+
+    - name: Verify changelog.txt format
+      run: bundle exec factorix mod changelog check
+
+    - name: Commit and push changelog update
+      run: |
+        git add changelog.txt
+        git commit -m ":memo: Start Unreleased section for next release"
+        git push origin main
+
+    - name: Post-release summary
+      run: |
+        echo "🎉 Release ${{ steps.version.outputs.tag }} published successfully!"
+        echo "- MOD built from tagged commit and published to Factorio MOD portal"
+        echo "- GitHub release created with changelog and assets"
+        echo "- Unreleased section added to changelog.txt on main"

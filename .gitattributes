@@ -1,0 +1,11 @@
+/.gitattributes export-ignore
+/.github/ export-ignore
+/.gitignore export-ignore
+/bin/ export-ignore
+/doc/ export-ignore
+/AGENTS.md export-ignore
+/CLAUDE.md export-ignore
+/Gemfile export-ignore
+/Gemfile.lock export-ignore
+/Rakefile export-ignore
+/mise.toml export-ignore

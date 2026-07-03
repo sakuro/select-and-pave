@@ -1,0 +1,11 @@
+-- data:extend({
+--   {
+--       type = "bool-setting",
+--       name = "foobar",
+--       setting_type = "startup",
+--       default_value = true,
+--       order = "xxx",
+--       localised_name = {"mod-settings-name.foobar"},
+--       localised_description = {"mod-settings-description.foobar"}
+--   }
+-- })

@@ -1,0 +1,11 @@
+{
+  "name": "select-and-pave",
+  "version": "0.0.1",
+  "title": "Select & Pave",
+  "author": "sakuro",
+  "description": "Select & Pave",
+  "factorio_version": "2.1",
+  "dependencies": [
+    "base >= 2.1"
+  ]
+}

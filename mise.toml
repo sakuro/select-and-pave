@@ -1,0 +1,10 @@
+[tools]
+ruby = "4.0"
+gh = "latest"
+jq = "latest"
+
+[settings]
+minimum_release_age = "3d"
+
+[env]
+_.path = ["bin"]

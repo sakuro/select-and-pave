@@ -91,6 +91,10 @@ end
 local function activate(player)
   local held_name, from_ghost = get_held_item_name(player)
   if not held_name or not get_paving_items()[held_name] then
+    player.create_local_flying_text({
+      text = {"select-and-pave-messages.no-paving-item"},
+      position = player.position,
+    })
     return
   end
 

@@ -8,23 +8,39 @@ local paving = {}
 
 paving.tool_prefix = "select-and-pave-tool-"
 
+local function tile_condition_names_of(tile_condition, name_of)
+  if not (tile_condition and #tile_condition > 0) then
+    return nil
+  end
+
+  local names = {}
+  for _, tile_ref in pairs(tile_condition) do
+    names[name_of(tile_ref)] = true
+  end
+  return names
+end
+
 --- @param place_as_tile table data-stage `PlaceAsTile` or runtime `PlaceAsTileResult`
 --- @param name_of function extracts a plain tile-name string from a tile reference
 function paving.normalize(place_as_tile, name_of)
-  local tile_condition_names
-  if place_as_tile.tile_condition and #place_as_tile.tile_condition > 0 then
-    tile_condition_names = {}
-    for _, tile_ref in pairs(place_as_tile.tile_condition) do
-      tile_condition_names[name_of(tile_ref)] = true
-    end
-  end
-
   return {
     result_name = name_of(place_as_tile.result),
     condition_layers = place_as_tile.condition and place_as_tile.condition.layers,
     invert = place_as_tile.invert,
-    tile_condition_names = tile_condition_names,
+    tile_condition_names = tile_condition_names_of(place_as_tile.tile_condition, name_of),
   }
+end
+
+local function layers_intersect(condition_layers, collision_mask_layers)
+  if not collision_mask_layers then
+    return false
+  end
+  for layer in pairs(condition_layers) do
+    if collision_mask_layers[layer] then
+      return true
+    end
+  end
+  return false
 end
 
 --- Whether a normalized place_as_tile allows its result tile to be placed
@@ -43,15 +59,7 @@ function paving.matches(tile_name, collision_mask_layers, normalized)
     return true
   end
 
-  local intersects = false
-  if collision_mask_layers then
-    for layer in pairs(normalized.condition_layers) do
-      if collision_mask_layers[layer] then
-        intersects = true
-        break
-      end
-    end
-  end
+  local intersects = layers_intersect(normalized.condition_layers, collision_mask_layers)
 
   -- `condition` names layers this item's tile is blocked by default (e.g.
   -- concrete's "water-tile"); `invert` flips it into an allowlist (e.g.

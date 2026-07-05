@@ -11,23 +11,32 @@ local function tile_prototype_name(tile_prototype)
   return tile_prototype.name
 end
 
+local function specificity_of(place_as_tile)
+  if place_as_tile.tile_condition and #place_as_tile.tile_condition > 0 then
+    return #place_as_tile.tile_condition
+  end
+  return math.huge
+end
+
+local function build_paving_entry(place_as_tile)
+  return {
+    result_name = place_as_tile.result.name,
+    normalized = paving.normalize(place_as_tile, tile_prototype_name),
+    specificity = specificity_of(place_as_tile),
+  }
+end
+
 --- @return table<string, table> item name -> {result_name, normalized, specificity}
 local function get_paving_items()
-  if not paving_items then
-    paving_items = {}
-    for name, prototype in pairs(prototypes.item) do
-      local place_as_tile = prototype.place_as_tile_result
-      if place_as_tile then
-        local specificity = math.huge
-        if place_as_tile.tile_condition and #place_as_tile.tile_condition > 0 then
-          specificity = #place_as_tile.tile_condition
-        end
-        paving_items[name] = {
-          result_name = place_as_tile.result.name,
-          normalized = paving.normalize(place_as_tile, tile_prototype_name),
-          specificity = specificity,
-        }
-      end
+  if paving_items then
+    return paving_items
+  end
+
+  paving_items = {}
+  for name, prototype in pairs(prototypes.item) do
+    local place_as_tile = prototype.place_as_tile_result
+    if place_as_tile then
+      paving_items[name] = build_paving_entry(place_as_tile)
     end
   end
   return paving_items
@@ -47,6 +56,26 @@ local function position_key(position)
   return math.floor(position.x) .. "_" .. math.floor(position.y)
 end
 
+--- Returns {name, entry} if `candidate_entry` is a viable underlay for
+--- `target_entry` on `tile` (placeable on `tile`, and `target_entry` in turn
+--- placeable on its result), or nil otherwise.
+local function underlay_candidate(name, candidate_entry, tile, target_entry)
+  if not is_placeable(tile, candidate_entry) then
+    return nil
+  end
+
+  local result_tile = prototypes.tile[candidate_entry.result_name]
+  if not result_tile then
+    return nil
+  end
+
+  if not is_placeable_on_tile_prototype(result_tile, target_entry) then
+    return nil
+  end
+
+  return {name = name, entry = candidate_entry}
+end
+
 --- Finds a generic "underlay" item (e.g. landfill) whose place_as_tile is
 --- valid on `tile`, and whose result tile `target_entry` would in turn be
 --- placeable on. Prefers the most specific candidate (narrowest
@@ -56,11 +85,9 @@ end
 local function choose_underlay(tile, target_entry)
   local candidates = {}
   for name, candidate_entry in pairs(get_paving_items()) do
-    if is_placeable(tile, candidate_entry) then
-      local candidate_result_tile = prototypes.tile[candidate_entry.result_name]
-      if candidate_result_tile and is_placeable_on_tile_prototype(candidate_result_tile, target_entry) then
-        candidates[#candidates + 1] = {name = name, entry = candidate_entry}
-      end
+    local candidate = underlay_candidate(name, candidate_entry, tile, target_entry)
+    if candidate then
+      candidates[#candidates + 1] = candidate
     end
   end
   table.sort(candidates, function(a, b)
@@ -98,12 +125,10 @@ local function activate(player)
     return
   end
 
-  if not from_ghost then
-    if not player.clear_cursor() then
-      -- Main inventory full and the stack couldn't be dropped anywhere safe;
-      -- bail out rather than risk destroying it.
-      return
-    end
+  if not from_ghost and not player.clear_cursor() then
+    -- Main inventory full and the stack couldn't be dropped anywhere safe;
+    -- bail out rather than risk destroying it.
+    return
   end
 
   storage.pending[player.index] = {from_ghost = from_ghost}
@@ -190,6 +215,18 @@ local function process_tile(surface, player, tile, entry, is_alt, ghost_position
   ghost_positions[key] = true
 end
 
+local function place_ghosts(player, event, entry, is_alt)
+  if not entry then
+    return
+  end
+
+  local surface = event.surface
+  local ghost_positions = collect_ghost_positions(surface, event.area)
+  for _, tile in pairs(event.tiles) do
+    process_tile(surface, player, tile, entry, is_alt, ghost_positions)
+  end
+end
+
 local function process_selection(event, is_alt)
   local held_name = held_item_name_from_tool(event.item)
   if not held_name then
@@ -205,14 +242,7 @@ local function process_selection(event, is_alt)
   local player = game.get_player(event.player_index)
   local entry = get_paving_items()[held_name]
 
-  if entry then
-    local surface = event.surface
-    local ghost_positions = collect_ghost_positions(surface, event.area)
-    for _, tile in pairs(event.tiles) do
-      process_tile(surface, player, tile, entry, is_alt, ghost_positions)
-    end
-  end
-
+  place_ghosts(player, event, entry, is_alt)
   restore_cursor(player, held_name, pending.from_ghost)
 end
 

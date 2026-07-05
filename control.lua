@@ -184,8 +184,42 @@ local function get_held_item_name(player)
   return nil, nil, false
 end
 
+--- If the player is holding nothing at all, tries to put the last item they
+--- paved with back in their hand -- a real stack from inventory if they
+--- still have one, otherwise a cursor_ghost preview -- so activating with
+--- empty hands repeats the last paving item instead of just failing.
+local function equip_last_used(player)
+  local last_used = storage.last_used[player.index]
+  if not last_used or not get_paving_items()[last_used] then
+    return false
+  end
+
+  local cursor_stack = player.cursor_stack
+  if not cursor_stack then
+    return false
+  end
+
+  local inventory = player.get_main_inventory()
+  if inventory then
+    for i = 1, #inventory do
+      local stack = inventory[i]
+      if stack.valid_for_read and stack.name == last_used then
+        cursor_stack.swap_stack(stack)
+        return true
+      end
+    end
+  end
+
+  player.cursor_ghost = {name = last_used}
+  return true
+end
+
 local function activate(player)
   local held_name, held_quality, from_ghost = get_held_item_name(player)
+  if not held_name and equip_last_used(player) then
+    held_name, held_quality, from_ghost = get_held_item_name(player)
+  end
+
   local entry = held_name and get_paving_items()[held_name]
   if not entry then
     player.create_local_flying_text({
@@ -343,11 +377,15 @@ local function process_selection(event, is_alt)
   local entry = get_paving_items()[held_name]
 
   place_ghosts(player, event, entry, is_alt)
+  if entry then
+    storage.last_used[event.player_index] = held_name
+  end
   restore_cursor(player, held_name, pending.quality, pending.from_ghost)
 end
 
 script.on_init(function()
   storage.pending = {}
+  storage.last_used = {}
 end)
 
 script.on_event(defines.events.on_lua_shortcut, function(event)
@@ -382,6 +420,7 @@ end)
 
 script.on_event(defines.events.on_player_removed, function(event)
   storage.pending[event.player_index] = nil
+  storage.last_used[event.player_index] = nil
 end)
 
 script.on_event(defines.events.on_player_selected_area, function(event)

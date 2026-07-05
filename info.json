@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "title": "Select & Pave",
   "author": "sakuro",
-  "description": "Select & Pave",
+  "description": "Hold a paving item (stone brick, concrete, landfill, etc.), drag-select an area, and place matching tile ghosts for construction.",
   "factorio_version": "2.1",
   "dependencies": [
     "base >= 2.1"

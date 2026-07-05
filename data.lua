@@ -10,7 +10,7 @@ data:extend({
   {
     type = "custom-input",
     name = custom_input_name,
-    key_sequence = "",
+    key_sequence = "ALT + W",
     action = "lua",
   },
   {

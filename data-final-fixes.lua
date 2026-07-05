@@ -10,16 +10,16 @@ local function icon_fields(item)
   return {icon = item.icon, icon_size = item.icon_size}
 end
 
-local function identity(value)
-  return value
-end
-
 --- Defines a `select-and-pave-tool-<name>` selection-tool prototype for
 --- `item`, if it has `place_as_tile`. No-op otherwise.
 local function define_selection_tool(name, item)
   local place_as_tile = item.place_as_tile
   if not place_as_tile then
     return
+  end
+
+  local function identity(value)
+    return value
   end
 
   local normalized = paving.normalize(place_as_tile, identity)

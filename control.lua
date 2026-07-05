@@ -100,23 +100,25 @@ local function choose_underlay(tile, target_entry)
 end
 
 --- Reads the item the player is holding, either for real (cursor_stack) or
---- as a preview (cursor_ghost). Returns nil if neither is set.
+--- as a preview (cursor_ghost). Returns nil if neither is set. Quality is
+--- tracked only so the exact same stack/preview can be restored afterwards
+--- -- it plays no part in paving logic itself, which is quality-blind.
 local function get_held_item_name(player)
   local cursor_stack = player.cursor_stack
   if cursor_stack and cursor_stack.valid_for_read then
-    return cursor_stack.name, false
+    return cursor_stack.name, cursor_stack.quality.name, false
   end
 
   local cursor_ghost = player.cursor_ghost
   if cursor_ghost then
-    return cursor_ghost.name.name, true
+    return cursor_ghost.name.name, cursor_ghost.quality.name, true
   end
 
-  return nil, false
+  return nil, nil, false
 end
 
 local function activate(player)
-  local held_name, from_ghost = get_held_item_name(player)
+  local held_name, held_quality, from_ghost = get_held_item_name(player)
   if not held_name or not get_paving_items()[held_name] then
     player.create_local_flying_text({
       text = {"select-and-pave-messages.no-paving-item"},
@@ -126,22 +128,24 @@ local function activate(player)
   end
 
   if not from_ghost and not player.clear_cursor() then
-    -- Main inventory full and the stack couldn't be dropped anywhere safe;
-    -- bail out rather than risk destroying it.
+    -- clear_cursor() normally always empties the cursor (dropping on the
+    -- ground if the main inventory is full), so a false return means
+    -- something more fundamental prevented it; don't swap cursors in that
+    -- case rather than risk the held stack.
     return
   end
 
-  storage.pending[player.index] = {from_ghost = from_ghost}
+  storage.pending[player.index] = {from_ghost = from_ghost, quality = held_quality}
   player.cursor_stack.set_stack({name = paving.tool_prefix .. held_name, count = 1})
 end
 
 --- Restores the cursor to whatever it held (or previewed) before `activate`
---- swapped it out for the selection tool.
-local function restore_cursor(player, held_name, from_ghost)
+--- swapped it out for the selection tool, matching both name and quality.
+local function restore_cursor(player, held_name, held_quality, from_ghost)
   player.cursor_stack.clear()
 
   if from_ghost then
-    player.cursor_ghost = {name = held_name}
+    player.cursor_ghost = {name = held_name, quality = held_quality}
     return
   end
 
@@ -151,19 +155,29 @@ local function restore_cursor(player, held_name, from_ghost)
   end
   for i = 1, #inventory do
     local stack = inventory[i]
-    if stack.valid_for_read and stack.name == held_name then
+    if stack.valid_for_read and stack.name == held_name and stack.quality.name == held_quality then
       player.cursor_stack.swap_stack(stack)
       return
     end
   end
 end
 
-local function collect_ghost_positions(surface, area)
-  local positions = {}
-  for _, ghost in pairs(surface.find_entities_filtered({area = area, type = "tile-ghost"})) do
-    positions[position_key(ghost.position)] = true
+--- Composite key so two different tile-ghosts stacked at the same position
+--- (e.g. a landfill underlay and a concrete target) are tracked separately.
+local function ghost_key(position, tile_name)
+  return position_key(position) .. "|" .. tile_name
+end
+
+--- Existing tile-ghosts belonging to `force` within `area`, keyed by
+--- `ghost_key`. Scoped to `force` so another force's ghosts never block our
+--- own placement.
+local function collect_existing_ghosts(surface, area, force)
+  local existing = {}
+  local ghosts = surface.find_entities_filtered({area = area, type = "tile-ghost", force = force})
+  for _, ghost in pairs(ghosts) do
+    existing[ghost_key(ghost.position, ghost.ghost_name)] = true
   end
-  return positions
+  return existing
 end
 
 --- Extracts the held item's name from a `select-and-pave-tool-<name>`
@@ -186,15 +200,20 @@ local function place_ghost(surface, player, position, tile_name)
   })
 end
 
-local function process_tile(surface, player, tile, entry, is_alt, ghost_positions)
-  local key = position_key(tile.position)
-  if ghost_positions[key] then
+--- Places a `tile_name` ghost at `tile.position` unless one is already
+--- there, recording it in `existing_ghosts` either way.
+local function place_ghost_once(surface, player, tile, tile_name, existing_ghosts)
+  local key = ghost_key(tile.position, tile_name)
+  if existing_ghosts[key] then
     return
   end
+  place_ghost(surface, player, tile.position, tile_name)
+  existing_ghosts[key] = true
+end
 
+local function process_tile(surface, player, tile, entry, is_alt, existing_ghosts)
   if is_placeable(tile, entry) then
-    place_ghost(surface, player, tile.position, entry.result_name)
-    ghost_positions[key] = true
+    place_ghost_once(surface, player, tile, entry.result_name, existing_ghosts)
     return
   end
 
@@ -209,10 +228,12 @@ local function process_tile(surface, player, tile, entry, is_alt, ghost_position
 
   -- Stack both ghosts at once; robots build the underlay (e.g. landfill)
   -- first and the target tile once the underlay makes the position valid
-  -- for it, without this MOD tracking the handoff itself.
-  place_ghost(surface, player, tile.position, underlay.entry.result_name)
-  place_ghost(surface, player, tile.position, entry.result_name)
-  ghost_positions[key] = true
+  -- for it, without this MOD tracking the handoff itself. Each is deduped
+  -- independently, so an underlay ghost placed earlier (by this MOD, a
+  -- blueprint, or anything else) doesn't block the target ghost from still
+  -- being added on top of it.
+  place_ghost_once(surface, player, tile, underlay.entry.result_name, existing_ghosts)
+  place_ghost_once(surface, player, tile, entry.result_name, existing_ghosts)
 end
 
 local function place_ghosts(player, event, entry, is_alt)
@@ -221,9 +242,9 @@ local function place_ghosts(player, event, entry, is_alt)
   end
 
   local surface = event.surface
-  local ghost_positions = collect_ghost_positions(surface, event.area)
+  local existing_ghosts = collect_existing_ghosts(surface, event.area, player.force)
   for _, tile in pairs(event.tiles) do
-    process_tile(surface, player, tile, entry, is_alt, ghost_positions)
+    process_tile(surface, player, tile, entry, is_alt, existing_ghosts)
   end
 end
 
@@ -243,7 +264,7 @@ local function process_selection(event, is_alt)
   local entry = get_paving_items()[held_name]
 
   place_ghosts(player, event, entry, is_alt)
-  restore_cursor(player, held_name, pending.from_ghost)
+  restore_cursor(player, held_name, pending.quality, pending.from_ghost)
 end
 
 script.on_init(function()

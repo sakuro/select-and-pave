@@ -3,9 +3,10 @@ local paving = require("lib.paving")
 local shortcut_name = "select-and-pave-activate"
 local custom_input_name = "select-and-pave-activate-input"
 
--- Prototypes are immutable after load, so this is computed once per game load
--- rather than kept in `storage`.
+-- Prototypes are immutable after load, so these are computed once per game
+-- load rather than kept in `storage`.
 local paving_items
+local unlock_technologies
 
 local function tile_prototype_name(tile_prototype)
   return tile_prototype.name
@@ -18,15 +19,59 @@ local function specificity_of(place_as_tile)
   return math.huge
 end
 
-local function build_paving_entry(place_as_tile)
+--- @return table<string, table<string, boolean>> item name -> set of
+--- technology names, any one of which unlocks a recipe producing that item.
+--- Items with a recipe already enabled at the start of the game (no
+--- research needed) are omitted entirely.
+local function get_unlock_technologies()
+  if unlock_technologies then
+    return unlock_technologies
+  end
+
+  -- recipe name -> set of item names it produces
+  local recipe_items = {}
+  -- item name -> true if some recipe producing it needs no research
+  local always_available = {}
+  for recipe_name, recipe in pairs(prototypes.recipe) do
+    local items = {}
+    for _, product in pairs(recipe.products) do
+      if product.type == "item" then
+        items[product.name] = true
+        if recipe.enabled then
+          always_available[product.name] = true
+        end
+      end
+    end
+    recipe_items[recipe_name] = items
+  end
+
+  unlock_technologies = {}
+  for tech_name, technology in pairs(prototypes.technology) do
+    for _, effect in pairs(technology.effects) do
+      if effect.type == "unlock-recipe" then
+        for item_name in pairs(recipe_items[effect.recipe] or {}) do
+          if not always_available[item_name] then
+            unlock_technologies[item_name] = unlock_technologies[item_name] or {}
+            unlock_technologies[item_name][tech_name] = true
+          end
+        end
+      end
+    end
+  end
+
+  return unlock_technologies
+end
+
+local function build_paving_entry(name, place_as_tile)
   return {
     result_name = place_as_tile.result.name,
     normalized = paving.normalize(place_as_tile, tile_prototype_name),
     specificity = specificity_of(place_as_tile),
+    required_technologies = get_unlock_technologies()[name],
   }
 end
 
---- @return table<string, table> item name -> {result_name, normalized, specificity}
+--- @return table<string, table> item name -> {result_name, normalized, specificity, required_technologies}
 local function get_paving_items()
   if paving_items then
     return paving_items
@@ -36,10 +81,26 @@ local function get_paving_items()
   for name, prototype in pairs(prototypes.item) do
     local place_as_tile = prototype.place_as_tile_result
     if place_as_tile then
-      paving_items[name] = build_paving_entry(place_as_tile)
+      paving_items[name] = build_paving_entry(name, place_as_tile)
     end
   end
   return paving_items
+end
+
+--- Whether `force` can currently obtain `entry`'s item (no gating recipe, or
+--- at least one unlocking technology already researched).
+local function is_available(entry, force)
+  local technologies = entry.required_technologies
+  if not technologies then
+    return true
+  end
+  for tech_name in pairs(technologies) do
+    local technology = force.technologies[tech_name]
+    if technology and technology.researched then
+      return true
+    end
+  end
+  return false
 end
 
 local function is_placeable(tile, entry)
@@ -57,9 +118,14 @@ local function position_key(position)
 end
 
 --- Returns {name, entry} if `candidate_entry` is a viable underlay for
---- `target_entry` on `tile` (placeable on `tile`, and `target_entry` in turn
---- placeable on its result), or nil otherwise.
-local function underlay_candidate(name, candidate_entry, tile, target_entry)
+--- `target_entry` on `tile` for `force` (currently obtainable by that force,
+--- placeable on `tile`, and `target_entry` in turn placeable on its
+--- result), or nil otherwise.
+local function underlay_candidate(name, candidate_entry, tile, target_entry, force)
+  if not is_available(candidate_entry, force) then
+    return nil
+  end
+
   if not is_placeable(tile, candidate_entry) then
     return nil
   end
@@ -78,14 +144,15 @@ end
 
 --- Finds a generic "underlay" item (e.g. landfill) whose place_as_tile is
 --- valid on `tile`, and whose result tile `target_entry` would in turn be
---- placeable on. Prefers the most specific candidate (narrowest
---- `tile_condition`) so a cheap, purpose-built item like landfill is chosen
---- over a broad, general-purpose one like foundation; ties break
---- alphabetically for determinism.
-local function choose_underlay(tile, target_entry)
+--- placeable on. Only considers items `force` can currently obtain --
+--- unresearched items are treated as if they didn't exist. Prefers the most
+--- specific candidate (narrowest `tile_condition`) so a cheap, purpose-built
+--- item like landfill is chosen over a broad, general-purpose one like
+--- foundation; ties break alphabetically for determinism.
+local function choose_underlay(tile, target_entry, force)
   local candidates = {}
   for name, candidate_entry in pairs(get_paving_items()) do
-    local candidate = underlay_candidate(name, candidate_entry, tile, target_entry)
+    local candidate = underlay_candidate(name, candidate_entry, tile, target_entry, force)
     if candidate then
       candidates[#candidates + 1] = candidate
     end
@@ -119,9 +186,21 @@ end
 
 local function activate(player)
   local held_name, held_quality, from_ghost = get_held_item_name(player)
-  if not held_name or not get_paving_items()[held_name] then
+  local entry = held_name and get_paving_items()[held_name]
+  if not entry then
     player.create_local_flying_text({
       text = {"select-and-pave-messages.no-paving-item"},
+      position = player.position,
+    })
+    return
+  end
+
+  -- A real cursor_stack means the player already has the item, regardless of
+  -- research; a cursor_ghost is just a preview (e.g. from Factoriopedia) and
+  -- can point at an item the force can't actually produce yet.
+  if from_ghost and not is_available(entry, player.force) then
+    player.create_local_flying_text({
+      text = {"select-and-pave-messages.not-yet-researched"},
       position = player.position,
     })
     return
@@ -221,7 +300,7 @@ local function process_tile(surface, player, tile, entry, is_alt, existing_ghost
     return
   end
 
-  local underlay = choose_underlay(tile, entry)
+  local underlay = choose_underlay(tile, entry, player.force)
   if not underlay then
     return
   end

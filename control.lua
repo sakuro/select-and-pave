@@ -212,6 +212,10 @@ local function process_selection(event, is_alt)
         elseif is_alt then
           local underlay = choose_underlay(tile, place_as_tile)
           if underlay then
+            -- Stack both ghosts at once; robots build the underlay (e.g.
+            -- landfill) first and the target tile once the underlay makes
+            -- the position valid for it, without this MOD tracking the
+            -- handoff itself.
             surface.create_entity({
               name = "tile-ghost",
               position = tile.position,
@@ -220,14 +224,15 @@ local function process_selection(event, is_alt)
               player = player,
               raise_built = true,
             })
+            surface.create_entity({
+              name = "tile-ghost",
+              position = tile.position,
+              inner_name = place_as_tile.result.name,
+              force = player.force,
+              player = player,
+              raise_built = true,
+            })
             ghost_positions[key] = true
-
-            storage.pending_chain[surface.index] = storage.pending_chain[surface.index] or {}
-            storage.pending_chain[surface.index][key] = {
-              underlay = underlay.place_as_tile.result.name,
-              target = place_as_tile.result.name,
-              force = player.force.name,
-            }
           end
         end
       end
@@ -237,40 +242,8 @@ local function process_selection(event, is_alt)
   restore_cursor(player, pending)
 end
 
-local function handle_built_tile(event)
-  local chain = storage.pending_chain[event.surface_index]
-  if not chain then
-    return
-  end
-
-  local surface = game.get_surface(event.surface_index)
-  if not surface then
-    return
-  end
-
-  for _, built in pairs(event.tiles) do
-    local key = position_key(built.position)
-    local entry = chain[key]
-    if entry and event.tile.name == entry.underlay then
-      surface.create_entity({
-        name = "tile-ghost",
-        position = built.position,
-        inner_name = entry.target,
-        force = entry.force,
-        raise_built = true,
-      })
-      chain[key] = nil
-    end
-  end
-end
-
-local function clear_pending_for_surface(event)
-  storage.pending_chain[event.surface_index] = nil
-end
-
 script.on_init(function()
   storage.pending = {}
-  storage.pending_chain = {}
 end)
 
 script.on_event(defines.events.on_lua_shortcut, function(event)
@@ -313,9 +286,3 @@ end)
 script.on_event(defines.events.on_player_alt_selected_area, function(event)
   process_selection(event, true)
 end)
-
-script.on_event(defines.events.on_robot_built_tile, handle_built_tile)
-script.on_event(defines.events.on_player_built_tile, handle_built_tile)
-
-script.on_event(defines.events.on_surface_deleted, clear_pending_for_surface)
-script.on_event(defines.events.on_surface_cleared, clear_pending_for_surface)

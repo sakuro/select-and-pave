@@ -1,10 +1,9 @@
 local shortcut_name = "select-and-pave-activate"
 local custom_input_name = "select-and-pave-activate-input"
 
--- Borrowed from the base mod so this MOD doesn't need its own art pipeline.
--- This is the fixed shortcut-bar icon; the per-item selection tools defined
--- in data-final-fixes.lua get their icon from the paving item they represent.
-local icon = "__base__/graphics/icons/concrete.png"
+-- Fixed shortcut-bar icon; the per-item selection tools defined in
+-- data-final-fixes.lua get their icon from the paving item they represent.
+local icon = "__select-and-pave__/graphics/icons/select-and-pave.png"
 local icon_size = 64
 
 data:extend({

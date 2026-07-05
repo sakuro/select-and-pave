@@ -1,112 +1,71 @@
+local paving = require("lib.paving")
+
 local shortcut_name = "select-and-pave-activate"
 local custom_input_name = "select-and-pave-activate-input"
-local selection_tool_name = "select-and-pave-tool"
 
 -- Prototypes are immutable after load, so this is computed once per game load
 -- rather than kept in `storage`.
 local paving_items
 
---- @return table<string, PlaceAsTileResult> item name -> place_as_tile_result
+local function tile_prototype_name(tile_prototype)
+  return tile_prototype.name
+end
+
+--- @return table<string, table> item name -> {result_name, normalized, specificity}
 local function get_paving_items()
   if not paving_items then
     paving_items = {}
     for name, prototype in pairs(prototypes.item) do
       local place_as_tile = prototype.place_as_tile_result
       if place_as_tile then
-        paving_items[name] = place_as_tile
+        local specificity = math.huge
+        if place_as_tile.tile_condition and #place_as_tile.tile_condition > 0 then
+          specificity = #place_as_tile.tile_condition
+        end
+        paving_items[name] = {
+          result_name = place_as_tile.result.name,
+          normalized = paving.normalize(place_as_tile, tile_prototype_name),
+          specificity = specificity,
+        }
       end
     end
   end
   return paving_items
 end
 
---- Whether `place_as_tile` allows its result tile to be placed over a tile
---- identified by `tile_name`/`tile_prototype`.
-local function matches_place_as_tile(tile_name, tile_prototype, place_as_tile)
-  if tile_name == place_as_tile.result.name then
-    return false -- already paved
-  end
+local function is_placeable(tile, entry)
+  local mask = tile.prototype.collision_mask
+  return paving.matches(tile.name, mask and mask.layers, entry.normalized)
+end
 
-  local tile_condition = place_as_tile.tile_condition
-  if tile_condition and #tile_condition > 0 then
-    local matched = false
-    for _, candidate in pairs(tile_condition) do
-      if candidate.name == tile_name then
-        matched = true
-        break
-      end
-    end
-    if not matched then
-      return false
-    end
-  end
-
-  local condition = place_as_tile.condition
-  if not (condition and condition.layers) then
-    return true
-  end
-
+local function is_placeable_on_tile_prototype(tile_prototype, entry)
   local mask = tile_prototype.collision_mask
-  local intersects = false
-  if mask and mask.layers then
-    for layer in pairs(condition.layers) do
-      if mask.layers[layer] then
-        intersects = true
-        break
-      end
-    end
-  end
-
-  -- `condition` names layers this item's tile is blocked by default (e.g.
-  -- concrete's "water-tile"); `invert` flips it into an allowlist (e.g.
-  -- landfill's "only valid where this matches").
-  if place_as_tile.invert then
-    return intersects
-  end
-  return not intersects
-end
-
-local function is_placeable(tile, place_as_tile)
-  return matches_place_as_tile(tile.name, tile.prototype, place_as_tile)
-end
-
-local function is_placeable_on_tile_prototype(tile_prototype, place_as_tile)
-  return matches_place_as_tile(tile_prototype.name, tile_prototype, place_as_tile)
+  return paving.matches(tile_prototype.name, mask and mask.layers, entry.normalized)
 end
 
 local function position_key(position)
   return math.floor(position.x) .. "_" .. math.floor(position.y)
 end
 
---- A shorter `tile_condition` whitelist means an item targets a narrower set
---- of tiles (e.g. landfill only lists water tiles, while Space Age's
---- foundation also lists lava/oil-ocean/wetland tiles). Items with no
---- whitelist at all are the least specific and sort last.
-local function underlay_specificity(place_as_tile)
-  local tile_condition = place_as_tile.tile_condition
-  if tile_condition and #tile_condition > 0 then
-    return #tile_condition
-  end
-  return math.huge
-end
-
 --- Finds a generic "underlay" item (e.g. landfill) whose place_as_tile is
---- valid on `tile`, and whose result tile the original `place_as_tile` would
---- in turn be placeable on. Prefers the most specific candidate (see
---- `underlay_specificity`) so a cheap, purpose-built item like landfill is
---- chosen over a broad, general-purpose one like foundation; ties break
+--- valid on `tile`, and whose result tile `target_entry` would in turn be
+--- placeable on. Prefers the most specific candidate (narrowest
+--- `tile_condition`) so a cheap, purpose-built item like landfill is chosen
+--- over a broad, general-purpose one like foundation; ties break
 --- alphabetically for determinism.
-local function choose_underlay(tile, place_as_tile)
+local function choose_underlay(tile, target_entry)
   local candidates = {}
-  for name, candidate in pairs(get_paving_items()) do
-    if is_placeable(tile, candidate) and is_placeable_on_tile_prototype(candidate.result, place_as_tile) then
-      candidates[#candidates + 1] = {name = name, place_as_tile = candidate}
+  for name, candidate_entry in pairs(get_paving_items()) do
+    if is_placeable(tile, candidate_entry) then
+      local candidate_result_tile = prototypes.tile[candidate_entry.result_name]
+      if candidate_result_tile and is_placeable_on_tile_prototype(candidate_result_tile, target_entry) then
+        candidates[#candidates + 1] = {name = name, entry = candidate_entry}
+      end
     end
   end
   table.sort(candidates, function(a, b)
-    local specificity_a, specificity_b = underlay_specificity(a.place_as_tile), underlay_specificity(b.place_as_tile)
-    if specificity_a ~= specificity_b then
-      return specificity_a < specificity_b
+    if a.entry.specificity ~= b.entry.specificity then
+      return a.entry.specificity < b.entry.specificity
     end
     return a.name < b.name
   end)
@@ -143,17 +102,17 @@ local function activate(player)
     end
   end
 
-  storage.pending[player.index] = {name = held_name, from_ghost = from_ghost}
-  player.cursor_stack.set_stack({name = selection_tool_name, count = 1})
+  storage.pending[player.index] = {from_ghost = from_ghost}
+  player.cursor_stack.set_stack({name = paving.tool_prefix .. held_name, count = 1})
 end
 
 --- Restores the cursor to whatever it held (or previewed) before `activate`
 --- swapped it out for the selection tool.
-local function restore_cursor(player, pending)
+local function restore_cursor(player, held_name, from_ghost)
   player.cursor_stack.clear()
 
-  if pending.from_ghost then
-    player.cursor_ghost = {name = pending.name}
+  if from_ghost then
+    player.cursor_ghost = {name = held_name}
     return
   end
 
@@ -163,7 +122,7 @@ local function restore_cursor(player, pending)
   end
   for i = 1, #inventory do
     local stack = inventory[i]
-    if stack.valid_for_read and stack.name == pending.name then
+    if stack.valid_for_read and stack.name == held_name then
       player.cursor_stack.swap_stack(stack)
       return
     end
@@ -178,8 +137,18 @@ local function collect_ghost_positions(surface, area)
   return positions
 end
 
+--- Extracts the held item's name from a `select-and-pave-tool-<name>`
+--- prototype name, or nil if `tool_name` isn't one of ours.
+local function held_item_name_from_tool(tool_name)
+  if tool_name and tool_name:sub(1, #paving.tool_prefix) == paving.tool_prefix then
+    return tool_name:sub(#paving.tool_prefix + 1)
+  end
+  return nil
+end
+
 local function process_selection(event, is_alt)
-  if event.item ~= selection_tool_name then
+  local held_name = held_item_name_from_tool(event.item)
+  if not held_name then
     return
   end
 
@@ -190,27 +159,27 @@ local function process_selection(event, is_alt)
   storage.pending[event.player_index] = nil
 
   local player = game.get_player(event.player_index)
-  local place_as_tile = get_paving_items()[pending.name]
+  local entry = get_paving_items()[held_name]
 
-  if place_as_tile then
+  if entry then
     local surface = event.surface
     local ghost_positions = collect_ghost_positions(surface, event.area)
 
     for _, tile in pairs(event.tiles) do
       local key = position_key(tile.position)
       if not ghost_positions[key] then
-        if is_placeable(tile, place_as_tile) then
+        if is_placeable(tile, entry) then
           surface.create_entity({
             name = "tile-ghost",
             position = tile.position,
-            inner_name = place_as_tile.result.name,
+            inner_name = entry.result_name,
             force = player.force,
             player = player,
             raise_built = true,
           })
           ghost_positions[key] = true
         elseif is_alt then
-          local underlay = choose_underlay(tile, place_as_tile)
+          local underlay = choose_underlay(tile, entry)
           if underlay then
             -- Stack both ghosts at once; robots build the underlay (e.g.
             -- landfill) first and the target tile once the underlay makes
@@ -219,7 +188,7 @@ local function process_selection(event, is_alt)
             surface.create_entity({
               name = "tile-ghost",
               position = tile.position,
-              inner_name = underlay.place_as_tile.result.name,
+              inner_name = underlay.entry.result_name,
               force = player.force,
               player = player,
               raise_built = true,
@@ -227,7 +196,7 @@ local function process_selection(event, is_alt)
             surface.create_entity({
               name = "tile-ghost",
               position = tile.position,
-              inner_name = place_as_tile.result.name,
+              inner_name = entry.result_name,
               force = player.force,
               player = player,
               raise_built = true,
@@ -239,7 +208,7 @@ local function process_selection(event, is_alt)
     end
   end
 
-  restore_cursor(player, pending)
+  restore_cursor(player, held_name, pending.from_ghost)
 end
 
 script.on_init(function()
@@ -269,7 +238,8 @@ script.on_event(defines.events.on_player_cursor_stack_changed, function(event)
   end
   local player = game.get_player(event.player_index)
   local cursor_stack = player.cursor_stack
-  local holding_tool = cursor_stack and cursor_stack.valid_for_read and cursor_stack.name == selection_tool_name
+  local holding_tool = cursor_stack and cursor_stack.valid_for_read
+    and held_item_name_from_tool(cursor_stack.name) ~= nil
   if not holding_tool then
     storage.pending[event.player_index] = nil
   end

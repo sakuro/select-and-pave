@@ -150,6 +150,46 @@ local function held_item_name_from_tool(tool_name)
   return nil
 end
 
+local function place_ghost(surface, player, position, tile_name)
+  surface.create_entity({
+    name = "tile-ghost",
+    position = position,
+    inner_name = tile_name,
+    force = player.force,
+    player = player,
+    raise_built = true,
+  })
+end
+
+local function process_tile(surface, player, tile, entry, is_alt, ghost_positions)
+  local key = position_key(tile.position)
+  if ghost_positions[key] then
+    return
+  end
+
+  if is_placeable(tile, entry) then
+    place_ghost(surface, player, tile.position, entry.result_name)
+    ghost_positions[key] = true
+    return
+  end
+
+  if not is_alt then
+    return
+  end
+
+  local underlay = choose_underlay(tile, entry)
+  if not underlay then
+    return
+  end
+
+  -- Stack both ghosts at once; robots build the underlay (e.g. landfill)
+  -- first and the target tile once the underlay makes the position valid
+  -- for it, without this MOD tracking the handoff itself.
+  place_ghost(surface, player, tile.position, underlay.entry.result_name)
+  place_ghost(surface, player, tile.position, entry.result_name)
+  ghost_positions[key] = true
+end
+
 local function process_selection(event, is_alt)
   local held_name = held_item_name_from_tool(event.item)
   if not held_name then
@@ -168,47 +208,8 @@ local function process_selection(event, is_alt)
   if entry then
     local surface = event.surface
     local ghost_positions = collect_ghost_positions(surface, event.area)
-
     for _, tile in pairs(event.tiles) do
-      local key = position_key(tile.position)
-      if not ghost_positions[key] then
-        if is_placeable(tile, entry) then
-          surface.create_entity({
-            name = "tile-ghost",
-            position = tile.position,
-            inner_name = entry.result_name,
-            force = player.force,
-            player = player,
-            raise_built = true,
-          })
-          ghost_positions[key] = true
-        elseif is_alt then
-          local underlay = choose_underlay(tile, entry)
-          if underlay then
-            -- Stack both ghosts at once; robots build the underlay (e.g.
-            -- landfill) first and the target tile once the underlay makes
-            -- the position valid for it, without this MOD tracking the
-            -- handoff itself.
-            surface.create_entity({
-              name = "tile-ghost",
-              position = tile.position,
-              inner_name = underlay.entry.result_name,
-              force = player.force,
-              player = player,
-              raise_built = true,
-            })
-            surface.create_entity({
-              name = "tile-ghost",
-              position = tile.position,
-              inner_name = entry.result_name,
-              force = player.force,
-              player = player,
-              raise_built = true,
-            })
-            ghost_positions[key] = true
-          end
-        end
-      end
+      process_tile(surface, player, tile, entry, is_alt, ghost_positions)
     end
   end
 

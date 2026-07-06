@@ -2,6 +2,8 @@ local paving = require("lib.paving")
 
 local shortcut_name = "select-and-pave-activate"
 local custom_input_name = "select-and-pave-activate-input"
+local next_item_input_name = "select-and-pave-next-item"
+local previous_item_input_name = "select-and-pave-previous-item"
 
 -- Prototypes are immutable after load, so these are computed once per game
 -- load rather than kept in `storage`.
@@ -184,6 +186,23 @@ local function get_held_item_name(player)
   return nil, nil, false
 end
 
+--- Finds a stack of `item_name` in the player's main inventory, optionally
+--- matching `quality` too (any quality if omitted). Returns the LuaItemStack,
+--- or nil if none is found.
+local function find_inventory_stack(player, item_name, quality)
+  local inventory = player.get_main_inventory()
+  if not inventory then
+    return nil
+  end
+  for i = 1, #inventory do
+    local stack = inventory[i]
+    if stack.valid_for_read and stack.name == item_name and (not quality or stack.quality.name == quality) then
+      return stack
+    end
+  end
+  return nil
+end
+
 --- If the player is holding nothing at all, tries to put the last item they
 --- paved with back in their hand -- a real stack from inventory if they
 --- still have one, otherwise a cursor_ghost preview -- so activating with
@@ -199,15 +218,10 @@ local function equip_last_used(player)
     return false
   end
 
-  local inventory = player.get_main_inventory()
-  if inventory then
-    for i = 1, #inventory do
-      local stack = inventory[i]
-      if stack.valid_for_read and stack.name == last_used then
-        cursor_stack.swap_stack(stack)
-        return true
-      end
-    end
+  local stack = find_inventory_stack(player, last_used)
+  if stack then
+    cursor_stack.swap_stack(stack)
+    return true
   end
 
   player.cursor_ghost = {name = last_used}
@@ -253,25 +267,20 @@ local function activate(player)
 end
 
 --- Restores the cursor to whatever it held (or previewed) before `activate`
---- swapped it out for the selection tool, matching both name and quality.
+--- swapped it out for the selection tool. `held_quality` is nil after
+--- rotating to a different item mid-selection (see rotate_item), in which
+--- case any quality of `held_name` matches.
 local function restore_cursor(player, held_name, held_quality, from_ghost)
   player.cursor_stack.clear()
 
   if from_ghost then
-    player.cursor_ghost = {name = held_name, quality = held_quality}
+    player.cursor_ghost = held_quality and {name = held_name, quality = held_quality} or {name = held_name}
     return
   end
 
-  local inventory = player.get_main_inventory()
-  if not inventory then
-    return
-  end
-  for i = 1, #inventory do
-    local stack = inventory[i]
-    if stack.valid_for_read and stack.name == held_name and stack.quality.name == held_quality then
-      player.cursor_stack.swap_stack(stack)
-      return
-    end
+  local stack = find_inventory_stack(player, held_name, held_quality)
+  if stack then
+    player.cursor_stack.swap_stack(stack)
   end
 end
 
@@ -300,6 +309,71 @@ local function held_item_name_from_tool(tool_name)
     return tool_name:sub(#paving.tool_prefix + 1)
   end
   return nil
+end
+
+--- Item names from get_paving_items(), sorted for deterministic rotation.
+local function sorted_paving_item_names()
+  local names = {}
+  for name in pairs(get_paving_items()) do
+    names[#names + 1] = name
+  end
+  table.sort(names)
+  return names
+end
+
+--- Item names `player` may rotate to: either they already have a real stack
+--- of it, or `force` can currently obtain it. An item with neither (no
+--- stack in hand and unresearched) is excluded entirely, matching
+--- activate()'s refusal to open on an unresearched cursor_ghost preview.
+local function rotation_candidates(player)
+  local candidates = {}
+  for _, name in pairs(sorted_paving_item_names()) do
+    local entry = get_paving_items()[name]
+    if find_inventory_stack(player, name) or is_available(entry, player.force) then
+      candidates[#candidates + 1] = name
+    end
+  end
+  return candidates
+end
+
+--- Cycles the active selection tool to the next/previous paving item
+--- (`direction` +1 or -1), while the tool is active. Whether the new item
+--- restores as a real stack or a cursor_ghost preview is decided fresh each
+--- time, based on whether the player currently has a stack of it -- not on
+--- whether the item being rotated away from was real or a preview.
+local function rotate_item(player, direction)
+  if not storage.pending[player.index] then
+    return
+  end
+
+  local cursor_stack = player.cursor_stack
+  local current_name = cursor_stack and cursor_stack.valid_for_read and held_item_name_from_tool(cursor_stack.name)
+  if not current_name then
+    return
+  end
+
+  local candidates = rotation_candidates(player)
+  if #candidates == 0 then
+    return
+  end
+
+  local current_index
+  for i, name in ipairs(candidates) do
+    if name == current_name then
+      current_index = i
+      break
+    end
+  end
+
+  local next_index = (((current_index or 1) - 1 + direction) % #candidates) + 1
+  local next_name = candidates[next_index]
+  if next_name == current_name then
+    return
+  end
+
+  local next_stack = find_inventory_stack(player, next_name)
+  storage.pending[player.index] = {from_ghost = not next_stack}
+  player.cursor_stack.set_stack({name = paving.tool_prefix .. next_name, count = 1})
 end
 
 local function place_ghost(surface, player, position, tile_name)
@@ -402,6 +476,20 @@ script.on_event(custom_input_name, function(event)
   local player = game.get_player(event.player_index)
   if player then
     activate(player)
+  end
+end)
+
+script.on_event(next_item_input_name, function(event)
+  local player = game.get_player(event.player_index)
+  if player then
+    rotate_item(player, 1)
+  end
+end)
+
+script.on_event(previous_item_input_name, function(event)
+  local player = game.get_player(event.player_index)
+  if player then
+    rotate_item(player, -1)
   end
 end)
 

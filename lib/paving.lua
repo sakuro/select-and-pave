@@ -43,6 +43,15 @@ local function layers_intersect(condition_layers, collision_mask_layers)
   return false
 end
 
+--- Whether a normalized place_as_tile's collision-mask condition references
+--- `layer` at all (regardless of `invert`). Used to recognize items that are
+--- specifically designed around a special-purpose layer (e.g. "empty_space"
+--- for space platforms) as opposed to items whose rule simply never
+--- mentions it and so can't be assumed valid there.
+function paving.condition_references(normalized, layer)
+  return normalized.condition_layers ~= nil and normalized.condition_layers[layer] == true
+end
+
 --- Whether a normalized place_as_tile allows its result tile to be placed
 --- over a tile named `tile_name` with collision mask layers
 --- `collision_mask_layers` (a set of layer-name -> true, or nil).

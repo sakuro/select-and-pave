@@ -105,6 +105,18 @@ local function is_available(entry, force)
   return false
 end
 
+-- Space platform surfaces expose this collision layer on their bare tiles;
+-- only items whose place_as_tile condition specifically references it (e.g.
+-- Space Age's space-platform-foundation) are meaningful there. Every other
+-- item's condition is written with planet surfaces in mind and simply never
+-- mentions this layer, which the generic collision-mask check would
+-- otherwise mistake for "no restriction" and allow anywhere.
+local platform_layer = "empty_space"
+
+local function usable_on_platform(entry)
+  return paving.condition_references(entry.normalized, platform_layer)
+end
+
 local function is_placeable(tile, entry)
   local mask = tile.prototype.collision_mask
   return paving.matches(tile.name, mask and mask.layers, entry.normalized)
@@ -121,9 +133,13 @@ end
 
 --- Returns {name, entry} if `candidate_entry` is a viable underlay for
 --- `target_entry` on `tile` for `force` (currently obtainable by that force,
---- placeable on `tile`, and `target_entry` in turn placeable on its
---- result), or nil otherwise.
-local function underlay_candidate(name, candidate_entry, tile, target_entry, force)
+--- usable on this surface, placeable on `tile`, and `target_entry` in turn
+--- placeable on its result), or nil otherwise.
+local function underlay_candidate(name, candidate_entry, tile, target_entry, force, on_platform)
+  if on_platform and not usable_on_platform(candidate_entry) then
+    return nil
+  end
+
   if not is_available(candidate_entry, force) then
     return nil
   end
@@ -151,10 +167,10 @@ end
 --- specific candidate (narrowest `tile_condition`) so a cheap, purpose-built
 --- item like landfill is chosen over a broad, general-purpose one like
 --- foundation; ties break alphabetically for determinism.
-local function choose_underlay(tile, target_entry, force)
+local function choose_underlay(tile, target_entry, force, on_platform)
   local candidates = {}
   for name, candidate_entry in pairs(get_paving_items()) do
-    local candidate = underlay_candidate(name, candidate_entry, tile, target_entry, force)
+    local candidate = underlay_candidate(name, candidate_entry, tile, target_entry, force, on_platform)
     if candidate then
       candidates[#candidates + 1] = candidate
     end
@@ -398,7 +414,11 @@ local function place_ghost_once(surface, player, tile, tile_name, existing_ghost
   existing_ghosts[key] = true
 end
 
-local function process_tile(surface, player, tile, entry, is_alt, existing_ghosts)
+local function process_tile(surface, player, tile, entry, is_alt, existing_ghosts, on_platform)
+  if on_platform and not usable_on_platform(entry) then
+    return
+  end
+
   if is_placeable(tile, entry) then
     place_ghost_once(surface, player, tile, entry.result_name, existing_ghosts)
     return
@@ -408,7 +428,7 @@ local function process_tile(surface, player, tile, entry, is_alt, existing_ghost
     return
   end
 
-  local underlay = choose_underlay(tile, entry, player.force)
+  local underlay = choose_underlay(tile, entry, player.force, on_platform)
   if not underlay then
     return
   end
@@ -429,9 +449,10 @@ local function place_ghosts(player, event, entry, is_alt)
   end
 
   local surface = event.surface
+  local on_platform = surface.platform ~= nil
   local existing_ghosts = collect_existing_ghosts(surface, event.area, player.force)
   for _, tile in pairs(event.tiles) do
-    process_tile(surface, player, tile, entry, is_alt, existing_ghosts)
+    process_tile(surface, player, tile, entry, is_alt, existing_ghosts, on_platform)
   end
 end
 

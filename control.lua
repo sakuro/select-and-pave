@@ -215,6 +215,20 @@ local function announce_paving_item(player, name)
   })
 end
 
+-- Scrolling to rotate items can fire rotate_item() several times a second,
+-- and each call's flying text is independent -- the engine has no way to
+-- replace or cancel one already on screen, so back-to-back calls stack up
+-- illegibly. Queuing the announcement and re-timing it on every call instead
+-- of showing it immediately means only the item scrolling settles on, after
+-- ANNOUNCE_DELAY_TICKS of no further calls, actually gets announced.
+local ANNOUNCE_DELAY_TICKS = 20
+
+--- Replaces any not-yet-shown announcement for `player` with one for `name`,
+--- due ANNOUNCE_DELAY_TICKS from now.
+local function queue_paving_announcement(player, name)
+  storage.pending_announce[player.index] = {name = name, at_tick = game.tick + ANNOUNCE_DELAY_TICKS}
+end
+
 --- Reads the item the player is holding, either for real (cursor_stack) or
 --- as a preview (cursor_ghost). Returns nil if neither is set. Quality is
 --- tracked only so the exact same stack/preview can be restored afterwards
@@ -311,7 +325,7 @@ local function activate(player)
 
   storage.pending[player.index] = {from_ghost = from_ghost, quality = held_quality}
   player.cursor_stack.set_stack({name = paving.tool_prefix .. held_name, count = 1})
-  announce_paving_item(player, held_name)
+  queue_paving_announcement(player, held_name)
 end
 
 --- Restores the cursor to whatever it held (or previewed) before `activate`
@@ -422,7 +436,7 @@ local function rotate_item(player, direction)
   local next_stack = find_inventory_stack(player, next_name)
   storage.pending[player.index] = {from_ghost = not next_stack}
   player.cursor_stack.set_stack({name = paving.tool_prefix .. next_name, count = 1})
-  announce_paving_item(player, next_name)
+  queue_paving_announcement(player, next_name)
 end
 
 local function place_ghost(surface, player, position, tile_name)
@@ -514,6 +528,19 @@ end
 script.on_init(function()
   storage.pending = {}
   storage.last_used = {}
+  storage.pending_announce = {}
+end)
+
+script.on_nth_tick(6, function()
+  for player_index, announcement in pairs(storage.pending_announce) do
+    if game.tick >= announcement.at_tick then
+      local player = game.get_player(player_index)
+      if player then
+        announce_paving_item(player, announcement.name)
+      end
+      storage.pending_announce[player_index] = nil
+    end
+  end
 end)
 
 script.on_event(defines.events.on_lua_shortcut, function(event)

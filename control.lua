@@ -226,6 +226,7 @@ local ANNOUNCE_DELAY_TICKS = 20
 --- Replaces any not-yet-shown announcement for `player` with one for `name`,
 --- due ANNOUNCE_DELAY_TICKS from now.
 local function queue_paving_announcement(player, name)
+  storage.pending_announce = storage.pending_announce or {}
   storage.pending_announce[player.index] = {name = name, at_tick = game.tick + ANNOUNCE_DELAY_TICKS}
 end
 
@@ -532,6 +533,11 @@ script.on_init(function()
 end)
 
 script.on_nth_tick(6, function()
+  -- on_init only runs the first time this MOD is added to a save; a save
+  -- that already had an earlier version (without pending_announce, e.g.
+  -- from dev testing where the version string doesn't change between
+  -- iterations) goes straight to on_load, leaving the field nil.
+  storage.pending_announce = storage.pending_announce or {}
   for player_index, announcement in pairs(storage.pending_announce) do
     if game.tick >= announcement.at_tick then
       local player = game.get_player(player_index)

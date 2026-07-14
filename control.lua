@@ -113,6 +113,14 @@ end
 -- otherwise mistake for "no restriction" and allow anywhere.
 local platform_layer = "empty_space"
 
+-- The layer water and lava tiles carry (see base's tile-collision-masks.lua),
+-- and the one plain paving items are universally blocked by. It's what
+-- specifically makes landfill/foundation "underlays": they reclaim terrain
+-- nothing else can touch. Other collision layers (e.g. Aquilo's "meltable",
+-- which blocks stone brick but not concrete) are gameplay-balance distinctions
+-- between plain paving items, not underlay-worthy terrain access.
+local water_layer = "water_tile"
+
 local function usable_on_platform(entry)
   return paving.condition_references(entry.normalized, platform_layer)
 end
@@ -184,16 +192,17 @@ local function choose_underlay(tile, target_entry, force, on_platform)
   return candidates[1]
 end
 
---- Whether `entry` can open up some tile for another paving item that item
---- couldn't go on directly -- e.g. landfill's result tile accepts concrete,
---- and unlike concrete, landfill also covers water. Checking only whether
---- the result tile hosts some other item (without the "couldn't go there
---- directly" part) would misclassify plain paving items too: most land
---- tiles accept every other land-based item just as well, so e.g. concrete
---- would falsely look like a valid underlay for stone brick. Independent of
---- any specific tile, force research state, or platform -- a tile-agnostic
---- classification for display purposes, not the precise per-tile check
---- `choose_underlay` performs when actually placing ghosts.
+--- Whether `entry` can reclaim some water/lava tile (see `water_layer`) for
+--- another paving item that couldn't go there directly -- e.g. landfill's
+--- result tile accepts concrete, and unlike concrete, landfill also covers
+--- water. Restricted to that one layer rather than any collision-mask
+--- difference: plain paving items can differ from each other too (e.g.
+--- Aquilo's meltable ice blocks stone brick but not concrete), and that's a
+--- gameplay-balance distinction between paving items, not the "opens up
+--- otherwise off-limits terrain" trait that makes something an underlay.
+--- Independent of any specific tile, force research state, or platform -- a
+--- tile-agnostic classification for display purposes, not the precise
+--- per-tile check `choose_underlay` performs when actually placing ghosts.
 local function can_serve_as_underlay(name, entry)
   local result_tile = prototypes.tile[entry.result_name]
   if not result_tile then
@@ -201,18 +210,11 @@ local function can_serve_as_underlay(name, entry)
   end
   for other_name, other_entry in pairs(get_paving_items()) do
     if other_name ~= name and is_placeable_on_tile_prototype(result_tile, other_entry) then
-      -- Skip other_entry's own result tile: `paving.matches` always refuses
-      -- to place an item on the tile it already produces ("already paved"),
-      -- which would otherwise look like "entry opened up a tile other_entry
-      -- couldn't reach" for literally any two different result tiles.
       for _, tile_prototype in pairs(prototypes.tile) do
-        if tile_prototype.name ~= other_entry.result_name
+        local mask = tile_prototype.collision_mask
+        if mask and mask.layers and mask.layers[water_layer]
           and is_placeable_on_tile_prototype(tile_prototype, entry)
           and not is_placeable_on_tile_prototype(tile_prototype, other_entry) then
-          log(string.format(
-            "[select-and-pave debug] %s -> underlay via other=%s at tile=%s (entry result=%s, other result=%s)",
-            name, other_name, tile_prototype.name, entry.result_name, other_entry.result_name
-          ))
           return true
         end
       end

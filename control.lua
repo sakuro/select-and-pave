@@ -184,6 +184,37 @@ local function choose_underlay(tile, target_entry, force, on_platform)
   return candidates[1]
 end
 
+--- Whether `entry`'s result tile could host some other paving item (e.g.
+--- landfill's result tile accepts concrete on top), independent of any
+--- specific tile, force research state, or platform -- a tile-agnostic
+--- classification for display purposes, not the precise per-tile check
+--- `choose_underlay` performs when actually placing ghosts.
+local function can_serve_as_underlay(name, entry)
+  local result_tile = prototypes.tile[entry.result_name]
+  if not result_tile then
+    return false
+  end
+  for other_name, other_entry in pairs(get_paving_items()) do
+    if other_name ~= name and is_placeable_on_tile_prototype(result_tile, other_entry) then
+      return true
+    end
+  end
+  return false
+end
+
+--- Shows flying text at `player`'s position naming the paving item `name`,
+--- noting when it could also serve as an underlay for other paving items.
+local function announce_paving_item(player, name)
+  local entry = get_paving_items()[name]
+  local message_key = entry and can_serve_as_underlay(name, entry)
+    and "select-and-pave-messages.now-paving-underlay"
+    or "select-and-pave-messages.now-paving"
+  player.create_local_flying_text({
+    text = {message_key, prototypes.item[name].localised_name},
+    position = player.position,
+  })
+end
+
 --- Reads the item the player is holding, either for real (cursor_stack) or
 --- as a preview (cursor_ghost). Returns nil if neither is set. Quality is
 --- tracked only so the exact same stack/preview can be restored afterwards
@@ -280,10 +311,7 @@ local function activate(player)
 
   storage.pending[player.index] = {from_ghost = from_ghost, quality = held_quality}
   player.cursor_stack.set_stack({name = paving.tool_prefix .. held_name, count = 1})
-  player.create_local_flying_text({
-    text = {"select-and-pave-messages.now-paving", prototypes.item[held_name].localised_name},
-    position = player.position,
-  })
+  announce_paving_item(player, held_name)
 end
 
 --- Restores the cursor to whatever it held (or previewed) before `activate`
@@ -394,10 +422,7 @@ local function rotate_item(player, direction)
   local next_stack = find_inventory_stack(player, next_name)
   storage.pending[player.index] = {from_ghost = not next_stack}
   player.cursor_stack.set_stack({name = paving.tool_prefix .. next_name, count = 1})
-  player.create_local_flying_text({
-    text = {"select-and-pave-messages.now-paving", prototypes.item[next_name].localised_name},
-    position = player.position,
-  })
+  announce_paving_item(player, next_name)
 end
 
 local function place_ghost(surface, player, position, tile_name)

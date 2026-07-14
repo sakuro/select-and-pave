@@ -1,10 +1,35 @@
 [tools]
-ruby = "4.0"
-gh = "latest"
-jq = "latest"
+gh = "2.96.0"
+jq = "1.8.2"
+"github:sakuro/factorix" = "0.21.0"
 
 [settings]
 minimum_release_age = "3d"
 
+[tasks.build]
+description = "Build MOD archive"
+run = "scripts/build.sh"
+
+[tasks.install]
+description = "Install MOD locally"
+depends = ["build"]
+run = "scripts/install.sh"
+
+[tasks.clean]
+description = "Remove build artifacts"
+run = "scripts/clean.sh"
+
+[tasks."release:portal"]
+description = "Publish MOD to Factorio MOD Portal"
+depends = ["build"]
+run = "scripts/release-portal.sh"
+
+[tasks."release:github"]
+description = "Create GitHub Release"
+depends = ["build"]
+run = "scripts/release-github.sh"
+
 [env]
-_.path = ["bin"]
+MOD_LICENSE = "default_mit"
+MOD_CATEGORY = "utilities"
+MOD_TAGS = "environment"

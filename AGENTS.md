@@ -6,13 +6,13 @@ Factorio MOD.
 
 ## Build and Install
 
-- `rake install` - Install to local Factorio MOD directory. Uses `git archive` internally, so only committed files are included — commit changes before running.
+- `mise run install` - Install to local Factorio MOD directory. Uses `git archive` internally, so only committed files are included — commit changes before running.
 
 ## Release
 
-Releases are handled by GitHub Actions workflows. Do not run `rake release` manually.
+Releases are handled by GitHub Actions workflows. Do not run `mise run release:*` manually.
 
-Changelog is managed by `bundle exec factorix mod changelog` and follows Factorio's changelog.txt specification.
+Changelog is managed by `factorix mod changelog` and follows Factorio's changelog.txt specification.
 
 ### What to write in changelog.txt
 

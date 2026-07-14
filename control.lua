@@ -201,8 +201,13 @@ local function can_serve_as_underlay(name, entry)
   end
   for other_name, other_entry in pairs(get_paving_items()) do
     if other_name ~= name and is_placeable_on_tile_prototype(result_tile, other_entry) then
+      -- Skip other_entry's own result tile: `paving.matches` always refuses
+      -- to place an item on the tile it already produces ("already paved"),
+      -- which would otherwise look like "entry opened up a tile other_entry
+      -- couldn't reach" for literally any two different result tiles.
       for _, tile_prototype in pairs(prototypes.tile) do
-        if is_placeable_on_tile_prototype(tile_prototype, entry)
+        if tile_prototype.name ~= other_entry.result_name
+          and is_placeable_on_tile_prototype(tile_prototype, entry)
           and not is_placeable_on_tile_prototype(tile_prototype, other_entry) then
           return true
         end

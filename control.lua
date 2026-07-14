@@ -280,6 +280,10 @@ local function activate(player)
 
   storage.pending[player.index] = {from_ghost = from_ghost, quality = held_quality}
   player.cursor_stack.set_stack({name = paving.tool_prefix .. held_name, count = 1})
+  player.create_local_flying_text({
+    text = {"select-and-pave-messages.now-paving", prototypes.item[held_name].localised_name},
+    position = player.position,
+  })
 end
 
 --- Restores the cursor to whatever it held (or previewed) before `activate`
@@ -390,6 +394,10 @@ local function rotate_item(player, direction)
   local next_stack = find_inventory_stack(player, next_name)
   storage.pending[player.index] = {from_ghost = not next_stack}
   player.cursor_stack.set_stack({name = paving.tool_prefix .. next_name, count = 1})
+  player.create_local_flying_text({
+    text = {"select-and-pave-messages.now-paving", prototypes.item[next_name].localised_name},
+    position = player.position,
+  })
 end
 
 local function place_ghost(surface, player, position, tile_name)

@@ -209,6 +209,10 @@ local function can_serve_as_underlay(name, entry)
         if tile_prototype.name ~= other_entry.result_name
           and is_placeable_on_tile_prototype(tile_prototype, entry)
           and not is_placeable_on_tile_prototype(tile_prototype, other_entry) then
+          log(string.format(
+            "[select-and-pave debug] %s -> underlay via other=%s at tile=%s (entry result=%s, other result=%s)",
+            name, other_name, tile_prototype.name, entry.result_name, other_entry.result_name
+          ))
           return true
         end
       end

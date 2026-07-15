@@ -184,9 +184,14 @@ local function choose_underlay(tile, target_entry, force, on_platform)
   return candidates[1]
 end
 
---- Whether `entry`'s result tile could host some other paving item (e.g.
---- landfill's result tile accepts concrete on top), independent of any
---- specific tile, force research state, or platform -- a tile-agnostic
+--- Whether `entry` can open up some tile for another paving item that item
+--- couldn't go on directly -- e.g. landfill's result tile accepts concrete,
+--- and unlike concrete, landfill also covers water. Checking only whether
+--- the result tile hosts some other item (without the "couldn't go there
+--- directly" part) would misclassify plain paving items too: most land
+--- tiles accept every other land-based item just as well, so e.g. concrete
+--- would falsely look like a valid underlay for stone brick. Independent of
+--- any specific tile, force research state, or platform -- a tile-agnostic
 --- classification for display purposes, not the precise per-tile check
 --- `choose_underlay` performs when actually placing ghosts.
 local function can_serve_as_underlay(name, entry)
@@ -196,7 +201,12 @@ local function can_serve_as_underlay(name, entry)
   end
   for other_name, other_entry in pairs(get_paving_items()) do
     if other_name ~= name and is_placeable_on_tile_prototype(result_tile, other_entry) then
-      return true
+      for _, tile_prototype in pairs(prototypes.tile) do
+        if is_placeable_on_tile_prototype(tile_prototype, entry)
+          and not is_placeable_on_tile_prototype(tile_prototype, other_entry) then
+          return true
+        end
+      end
     end
   end
   return false

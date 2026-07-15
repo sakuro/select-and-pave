@@ -127,12 +127,14 @@ end
 
 local function is_placeable(tile, entry)
   local mask = tile.prototype.collision_mask
-  return paving.matches(tile.name, mask and mask.layers, entry.normalized)
+  local thawed = tile.prototype.thawed_variant
+  return paving.matches(tile.name, mask and mask.layers, entry.normalized, thawed and thawed.name)
 end
 
 local function is_placeable_on_tile_prototype(tile_prototype, entry)
   local mask = tile_prototype.collision_mask
-  return paving.matches(tile_prototype.name, mask and mask.layers, entry.normalized)
+  local thawed = tile_prototype.thawed_variant
+  return paving.matches(tile_prototype.name, mask and mask.layers, entry.normalized, thawed and thawed.name)
 end
 
 local function position_key(position)

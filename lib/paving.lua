@@ -55,8 +55,13 @@ end
 --- Whether a normalized place_as_tile allows its result tile to be placed
 --- over a tile named `tile_name` with collision mask layers
 --- `collision_mask_layers` (a set of layer-name -> true, or nil).
-function paving.matches(tile_name, collision_mask_layers, normalized)
-  if tile_name == normalized.result_name then
+--- `thawed_name`, if given, is the tile `tile_name` thaws into (e.g.
+--- Aquilo's frozen-concrete thaws into concrete) -- a frozen tile counts as
+--- already paved too, since re-placing it under drag-select just spends the
+--- item on a thaw that has no heat source to hold, and will refreeze right
+--- back.
+function paving.matches(tile_name, collision_mask_layers, normalized, thawed_name)
+  if tile_name == normalized.result_name or thawed_name == normalized.result_name then
     return false -- already paved
   end
 

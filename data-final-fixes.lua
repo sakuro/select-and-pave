@@ -30,7 +30,7 @@ local function define_selection_tool(name, item)
   local tile_filters = {}
   for tile_name, tile_prototype in pairs(data.raw.tile) do
     local mask = tile_prototype.collision_mask
-    if paving.matches(tile_name, mask and mask.layers, normalized) then
+    if paving.matches(tile_name, mask and mask.layers, normalized, tile_prototype.thawed_variant) then
       tile_filters[#tile_filters + 1] = tile_name
     end
   end

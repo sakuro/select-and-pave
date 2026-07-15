@@ -231,7 +231,7 @@ local function announce_paving_item(player, name)
     and "select-and-pave-messages.now-paving-underlay"
     or "select-and-pave-messages.now-paving"
   player.create_local_flying_text({
-    text = {"", "[item=" .. name .. "] ", {message_key, prototypes.item[name].localised_name}},
+    text = {message_key, "[item=" .. name .. "]", prototypes.item[name].localised_name},
     position = player.position,
   })
 end

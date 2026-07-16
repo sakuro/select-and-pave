@@ -467,7 +467,7 @@ local function place_ghost_once(surface, player, tile, tile_name, existing_ghost
   existing_ghosts[key] = true
 end
 
-local function process_tile(surface, player, tile, entry, is_alt, existing_ghosts, on_platform)
+local function process_tile(surface, player, tile, entry, is_alt, existing_ghosts, on_platform, underlay_cache)
   if on_platform and not usable_on_platform(entry) then
     return
   end
@@ -481,7 +481,16 @@ local function process_tile(surface, player, tile, entry, is_alt, existing_ghost
     return
   end
 
-  local underlay = choose_underlay(tile, entry, player.force, on_platform)
+  -- choose_underlay scans every paving item against every tile in the
+  -- selection, but its result depends only on the tile's name (target item,
+  -- force and platform are fixed within one selection), so large drags over
+  -- uniform terrain would repeat the same scan tens of thousands of times.
+  -- `false` records "no underlay" so misses are cached too.
+  local underlay = underlay_cache[tile.name]
+  if underlay == nil then
+    underlay = choose_underlay(tile, entry, player.force, on_platform) or false
+    underlay_cache[tile.name] = underlay
+  end
   if not underlay then
     return
   end
@@ -504,8 +513,9 @@ local function place_ghosts(player, event, entry, is_alt)
   local surface = event.surface
   local on_platform = surface.platform ~= nil
   local existing_ghosts = collect_existing_ghosts(surface, event.area, player.force)
+  local underlay_cache = {}
   for _, tile in pairs(event.tiles) do
-    process_tile(surface, player, tile, entry, is_alt, existing_ghosts, on_platform)
+    process_tile(surface, player, tile, entry, is_alt, existing_ghosts, on_platform, underlay_cache)
   end
 end
 

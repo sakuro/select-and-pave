@@ -10,28 +10,57 @@ local function icon_fields(item)
   return {icon = item.icon, icon_size = item.icon_size}
 end
 
+-- Data-stage tile references are already plain name strings.
+local function identity(value)
+  return value
+end
+
+local function matches_tile(tile_name, tile_prototype, normalized)
+  local mask = tile_prototype.collision_mask
+  return paving.matches(tile_name, mask and mask.layers, normalized, tile_prototype.thawed_variant)
+end
+
 --- Defines a `select-and-pave-tool-<name>` selection-tool prototype for
---- `item`, if it has `place_as_tile`. No-op otherwise.
-local function define_selection_tool(name, item)
-  local place_as_tile = item.place_as_tile
-  if not place_as_tile then
-    return
+--- `candidate`. `candidates` is the full list of place_as_tile items, used
+--- to work out which tiles some underlay could make paveable.
+local function define_selection_tool(candidate, candidates)
+  local name, item, normalized = candidate.name, candidate.item, candidate.normalized
+
+  -- Items whose result tile exists and accepts this item on top, i.e.
+  -- whatever control.lua's choose_underlay could ever pick for it. (Never
+  -- the item itself: matches() rejects placing a tile on its own result.)
+  local underlay_normals = {}
+  for _, other in pairs(candidates) do
+    local result_name = other.normalized.result_name
+    local result_prototype = data.raw.tile[result_name]
+    if result_prototype and matches_tile(result_name, result_prototype, normalized) then
+      underlay_normals[#underlay_normals + 1] = other.normalized
+    end
   end
 
-  local function identity(value)
-    return value
-  end
-
-  local normalized = paving.normalize(place_as_tile, identity)
-
-  -- Precomputes which existing tiles this item could ever pave, so the
-  -- normal-select mode only reports (and lets the engine's built-in
-  -- counter count) tiles that are actually valid targets.
+  -- Precomputes which existing tiles this item could ever pave, directly
+  -- (tile_filters -- the normal-select whitelist) or with an underlay in
+  -- between (alt_tile_filters -- a superset of it), so each mode's native
+  -- counter only counts tiles that are actual targets for that mode.
+  -- Research state and platform restrictions are runtime concerns that
+  -- control.lua re-checks, so the alt counter still overcounts tiles whose
+  -- only underlay isn't obtainable yet. Tiles already paved with (or frozen
+  -- and thawing back into) this item's result get no underlay, mirroring
+  -- control.lua's is_already_paved.
   local tile_filters = {}
+  local alt_tile_filters = {}
   for tile_name, tile_prototype in pairs(data.raw.tile) do
-    local mask = tile_prototype.collision_mask
-    if paving.matches(tile_name, mask and mask.layers, normalized, tile_prototype.thawed_variant) then
+    if matches_tile(tile_name, tile_prototype, normalized) then
       tile_filters[#tile_filters + 1] = tile_name
+      alt_tile_filters[#alt_tile_filters + 1] = tile_name
+    elseif tile_name ~= normalized.result_name
+      and tile_prototype.thawed_variant ~= normalized.result_name then
+      for _, underlay_normalized in pairs(underlay_normals) do
+        if matches_tile(tile_name, tile_prototype, underlay_normalized) then
+          alt_tile_filters[#alt_tile_filters + 1] = tile_name
+          break
+        end
+      end
     end
   end
 
@@ -40,6 +69,12 @@ local function define_selection_tool(name, item)
     cursor_box_type = "copy",
     border_color = {r = 0.9, g = 0.7, b = 0.2},
     count_button_color = {r = 0.9, g = 0.7, b = 0.2},
+  }
+  local alt_select = {
+    mode = {"any-tile"},
+    cursor_box_type = "copy",
+    border_color = {r = 0.3, g = 0.6, b = 0.9},
+    count_button_color = {r = 0.3, g = 0.6, b = 0.9},
   }
   -- An empty whitelist is treated as "no filter" by the engine, which would
   -- silently make the native counter report every tile in the drag box
@@ -50,6 +85,10 @@ local function define_selection_tool(name, item)
     select.tile_filters = tile_filters
     select.tile_filter_mode = "whitelist"
   end
+  if #alt_tile_filters > 0 then
+    alt_select.tile_filters = alt_tile_filters
+    alt_select.tile_filter_mode = "whitelist"
+  end
 
   local selection_tool = {
     type = "selection-tool",
@@ -59,13 +98,7 @@ local function define_selection_tool(name, item)
     hidden = true,
     stack_size = 1,
     select = select,
-    alt_select = {
-      -- Deliberately unfiltered: alt-select's whole purpose is to also
-      -- catch tiles the normal whitelist above excludes.
-      mode = {"any-tile"},
-      cursor_box_type = "copy",
-      border_color = {r = 0.3, g = 0.6, b = 0.9},
-    },
+    alt_select = alt_select,
   }
   for key, value in pairs(icon_fields(item)) do
     selection_tool[key] = value
@@ -89,11 +122,15 @@ local paving_candidates = {}
 for _, group in pairs(data.raw) do
   for name, prototype in pairs(group) do
     if prototype.place_as_tile then
-      paving_candidates[#paving_candidates + 1] = {name = name, item = prototype}
+      paving_candidates[#paving_candidates + 1] = {
+        name = name,
+        item = prototype,
+        normalized = paving.normalize(prototype.place_as_tile, identity),
+      }
     end
   end
 end
 
 for _, candidate in pairs(paving_candidates) do
-  define_selection_tool(candidate.name, candidate.item)
+  define_selection_tool(candidate, paving_candidates)
 end

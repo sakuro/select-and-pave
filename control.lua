@@ -108,6 +108,16 @@ local function is_placeable(tile, entry)
   return paving.matches(tile.name, mask and mask.layers, entry.normalized, thawed and thawed.name)
 end
 
+--- Whether `tile` already is (or, frozen, thaws back into) `entry`'s result.
+--- Distinguishes "nothing to do" from "blocked, needs an underlay": both make
+--- `is_placeable` false, but only the latter should trigger an underlay
+--- search -- otherwise paving concrete over concrete would sneak a hazard
+--- concrete "underlay" in, since concrete is placeable on top of it.
+local function is_already_paved(tile, entry)
+  local thawed = tile.prototype.thawed_variant
+  return tile.name == entry.result_name or (thawed and thawed.name == entry.result_name) or false
+end
+
 local function is_placeable_on_tile_prototype(tile_prototype, entry)
   local mask = tile_prototype.collision_mask
   local thawed = tile_prototype.thawed_variant
@@ -477,7 +487,7 @@ local function process_tile(surface, player, tile, entry, is_alt, existing_ghost
     return
   end
 
-  if not is_alt then
+  if not is_alt or is_already_paved(tile, entry) then
     return
   end
 

@@ -21,16 +21,24 @@ data:extend({
     -- Unassigned by default: mods setting a default mouse-wheel key_sequence
     -- has a history of not being reliably recognized, so this is left for
     -- players to bind themselves (e.g. Shift + mouse wheel).
+    --
+    -- consuming: vanilla zoom fires on wheel input regardless of held
+    -- modifiers, so a modifier + wheel binding would otherwise rotate and
+    -- zoom at once. Consumption only applies when this input's own key
+    -- sequence matches, leaving bare-wheel zoom alone (unless the player
+    -- deliberately binds the bare wheel here).
     type = "custom-input",
     name = next_item_input_name,
     key_sequence = "",
     action = "lua",
+    consuming = "game-only",
   },
   {
     type = "custom-input",
     name = previous_item_input_name,
     key_sequence = "",
     action = "lua",
+    consuming = "game-only",
   },
   {
     type = "shortcut",

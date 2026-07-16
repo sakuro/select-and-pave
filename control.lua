@@ -405,15 +405,30 @@ local function sorted_paving_item_names()
   return names
 end
 
+--- Set of item names present in the player's main inventory, built from a
+--- single get_contents() pass -- for possession checks that don't need the
+--- LuaItemStack itself (unlike find_inventory_stack's per-slot scan).
+local function inventory_item_names(player)
+  local names = {}
+  local inventory = player.get_main_inventory()
+  if inventory then
+    for _, item in pairs(inventory.get_contents()) do
+      names[item.name] = true
+    end
+  end
+  return names
+end
+
 --- Item names `player` may rotate to: either they already have a real stack
 --- of it, or `force` can currently obtain it. An item with neither (no
 --- stack in hand and unresearched) is excluded entirely, matching
 --- activate()'s refusal to open on an unresearched cursor_ghost preview.
 local function rotation_candidates(player)
+  local owned = inventory_item_names(player)
   local candidates = {}
   for _, name in pairs(sorted_paving_item_names()) do
     local entry = get_paving_items()[name]
-    if find_inventory_stack(player, name) or is_available(entry, player.force) then
+    if owned[name] or is_available(entry, player.force) then
       candidates[#candidates + 1] = name
     end
   end

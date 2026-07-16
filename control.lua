@@ -351,7 +351,7 @@ local function activate(player)
     return
   end
 
-  storage.pending[player.index] = {from_ghost = from_ghost, quality = held_quality}
+  storage.pending[player.index] = {name = held_name, from_ghost = from_ghost, quality = held_quality}
   player.cursor_stack.set_stack({name = paving.tool_prefix .. held_name, count = 1})
   queue_paving_announcement(player, held_name)
 end
@@ -462,7 +462,7 @@ local function rotate_item(player, direction)
   end
 
   local next_stack = find_inventory_stack(player, next_name)
-  storage.pending[player.index] = {from_ghost = not next_stack}
+  storage.pending[player.index] = {name = next_name, from_ghost = not next_stack}
   player.cursor_stack.set_stack({name = paving.tool_prefix .. next_name, count = 1})
   queue_paving_announcement(player, next_name)
 end
@@ -620,15 +620,28 @@ script.on_event(previous_item_input_name, function(event)
 end)
 
 script.on_event(defines.events.on_player_cursor_stack_changed, function(event)
-  if not storage.pending[event.player_index] then
+  local pending = storage.pending[event.player_index]
+  if not pending then
     return
   end
   local player = game.get_player(event.player_index)
   local cursor_stack = player.cursor_stack
   local holding_tool = cursor_stack and cursor_stack.valid_for_read
     and held_item_name_from_tool(cursor_stack.name) ~= nil
-  if not holding_tool then
-    storage.pending[event.player_index] = nil
+  if holding_tool then
+    return
+  end
+  storage.pending[event.player_index] = nil
+
+  -- Cancelling the selection (Q) destroys the only-in-cursor tool and leaves
+  -- the hand empty; give back what activate() swapped out, same as selection
+  -- completion does. If the cursor instead holds something else now (the
+  -- player switched to another item themselves), leave their choice alone.
+  -- pending.name can be nil in a save from before it was recorded, or name
+  -- an item whose mod is gone (same staleness as equip_last_used guards).
+  local hand_empty = not (cursor_stack and cursor_stack.valid_for_read) and not player.cursor_ghost
+  if hand_empty and pending.name and get_paving_items()[pending.name] then
+    restore_cursor(player, pending.name, pending.quality, pending.from_ghost)
   end
 end)
 

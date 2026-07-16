@@ -86,10 +86,14 @@ end
 
 -- Space platform surfaces expose this collision layer on their bare tiles;
 -- only items whose place_as_tile condition specifically references it (e.g.
--- Space Age's space-platform-foundation) are meaningful there. Every other
--- item's condition is written with planet surfaces in mind and simply never
--- mentions this layer, which the generic collision-mask check would
--- otherwise mistake for "no restriction" and allow anywhere.
+-- Space Age's space-platform-foundation) may be paved on platforms at all.
+-- can_place_tile_ghost does NOT make this guard redundant: the underlay
+-- search's "would the target fit on the underlay's result tile?" question
+-- is positionless and answered by paving.matches, which cannot see the
+-- platform rule. Without the guard it stacks concrete on a foundation
+-- underlay -- a placement the game refuses to make manually (even as a
+-- ghost from remote view) yet robots happily revive, so the forbidden
+-- state would be reachable only through this MOD.
 local platform_layer = "empty_space"
 
 -- The layer water and lava tiles carry (see base's tile-collision-masks.lua),

@@ -65,6 +65,10 @@ end
 --- `place_as_tile.condition_size` tiles around the position; this
 --- reimplementation checks only the single tile. Vanilla items all use
 --- size 1, but a modded item with a larger radius will diverge here.
+--- Runtime checks against a real map position therefore go through the
+--- engine instead (control.lua's can_place_tile_ghost); this function
+--- remains for data-stage filters and prototype-vs-prototype checks,
+--- where no position exists to ask the engine about.
 function paving.matches(tile_name, collision_mask_layers, normalized, thawed_name)
   if tile_name == normalized.result_name or thawed_name == normalized.result_name then
     return false -- already paved

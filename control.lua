@@ -104,17 +104,29 @@ local function usable_on_platform(entry)
   return paving.condition_references(entry.normalized, platform_layer)
 end
 
-local function is_placeable(tile, entry)
-  local mask = tile.prototype.collision_mask
-  local thawed = tile.prototype.thawed_variant
-  return paving.matches(tile.name, mask and mask.layers, entry.normalized, thawed and thawed.name)
+--- Asks the engine whether a `tile_name` ghost could be manually placed at
+--- `position` -- the authoritative build check, honoring every placement
+--- rule lib/paving.lua's prototype-level `matches` only approximates
+--- (condition_size neighborhoods, foundation rules on space platforms, ...).
+--- Only answerable where an actual position exists; prototype-vs-prototype
+--- questions (underlay result tiles, data-stage filters) still go through
+--- `matches`.
+local function can_place_tile_ghost(surface, position, tile_name, force)
+  return surface.can_place_entity({
+    name = "tile-ghost",
+    inner_name = tile_name,
+    position = position,
+    force = force,
+    build_check_type = defines.build_check_type.manual_ghost,
+  })
 end
 
 --- Whether `tile` already is (or, frozen, thaws back into) `entry`'s result.
---- Distinguishes "nothing to do" from "blocked, needs an underlay": both make
---- `is_placeable` false, but only the latter should trigger an underlay
---- search -- otherwise paving concrete over concrete would sneak a hazard
---- concrete "underlay" in, since concrete is placeable on top of it.
+--- The engine check can't express "nothing to do": it approves re-placing a
+--- tile over its own frozen variant (a thaw no heat source would hold), and
+--- its refusal over the identical tile would read as "blocked, needs an
+--- underlay" -- paving concrete over concrete would sneak a hazard concrete
+--- "underlay" in, since concrete is placeable on top of it.
 local function is_already_paved(tile, entry)
   local thawed = tile.prototype.thawed_variant
   return tile.name == entry.result_name or (thawed and thawed.name == entry.result_name) or false
@@ -134,7 +146,7 @@ end
 --- `target_entry` on `tile` for `force` (currently obtainable by that force,
 --- usable on this surface, placeable on `tile`, and `target_entry` in turn
 --- placeable on its result), or nil otherwise.
-local function underlay_candidate(name, candidate_entry, tile, target_entry, force, on_platform)
+local function underlay_candidate(surface, name, candidate_entry, tile, target_entry, force, on_platform)
   if on_platform and not usable_on_platform(candidate_entry) then
     return nil
   end
@@ -143,7 +155,11 @@ local function underlay_candidate(name, candidate_entry, tile, target_entry, for
     return nil
   end
 
-  if not is_placeable(tile, candidate_entry) then
+  -- is_already_paved keeps the engine check from treating a frozen variant
+  -- of the candidate's own result as coverable terrain (thawing it is not
+  -- underlaying).
+  if is_already_paved(tile, candidate_entry)
+    or not can_place_tile_ghost(surface, tile.position, candidate_entry.result_name, force) then
     return nil
   end
 
@@ -166,10 +182,10 @@ end
 --- specific candidate (narrowest `tile_condition`) so a cheap, purpose-built
 --- item like landfill is chosen over a broad, general-purpose one like
 --- foundation; ties break alphabetically for determinism.
-local function choose_underlay(tile, target_entry, force, on_platform)
+local function choose_underlay(surface, tile, target_entry, force, on_platform)
   local candidates = {}
   for name, candidate_entry in pairs(get_paving_items()) do
-    local candidate = underlay_candidate(name, candidate_entry, tile, target_entry, force, on_platform)
+    local candidate = underlay_candidate(surface, name, candidate_entry, tile, target_entry, force, on_platform)
     if candidate then
       candidates[#candidates + 1] = candidate
     end
@@ -503,12 +519,20 @@ local function process_tile(surface, player, tile, entry, is_alt, existing_ghost
     return
   end
 
-  if is_placeable(tile, entry) then
+  -- Decided here rather than left to the engine check: the engine happily
+  -- re-places a tile over its own frozen variant (that's how thawing works),
+  -- and this also stops the underlay search below from treating a tile that
+  -- needs nothing as blocked (see is_already_paved).
+  if is_already_paved(tile, entry) then
+    return
+  end
+
+  if can_place_tile_ghost(surface, tile.position, entry.result_name, player.force) then
     place_ghost_once(surface, player, tile, entry.result_name, existing_ghosts)
     return
   end
 
-  if not is_alt or is_already_paved(tile, entry) then
+  if not is_alt then
     return
   end
 
@@ -516,10 +540,13 @@ local function process_tile(surface, player, tile, entry, is_alt, existing_ghost
   -- selection, but its result depends only on the tile's name (target item,
   -- force and platform are fixed within one selection), so large drags over
   -- uniform terrain would repeat the same scan tens of thousands of times.
-  -- `false` records "no underlay" so misses are cached too.
+  -- `false` records "no underlay" so misses are cached too. The engine check
+  -- inside is positional, so for an item with condition_size > 1 the cached
+  -- answer could differ between same-named tiles; vanilla items are all
+  -- size 1.
   local underlay = underlay_cache[tile.name]
   if underlay == nil then
-    underlay = choose_underlay(tile, entry, player.force, on_platform) or false
+    underlay = choose_underlay(surface, tile, entry, player.force, on_platform) or false
     underlay_cache[tile.name] = underlay
   end
   if not underlay then

@@ -6,3 +6,4 @@
 /AGENTS.md export-ignore
 /CLAUDE.md export-ignore
 /mise.toml export-ignore
+/tests/ export-ignore

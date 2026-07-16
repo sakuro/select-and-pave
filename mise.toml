@@ -19,6 +19,10 @@ run = "scripts/install.sh"
 description = "Remove build artifacts"
 run = "scripts/clean.sh"
 
+[tasks.test]
+description = "Run unit tests"
+run = "lua tests/paving_test.lua"
+
 [tasks."release:portal"]
 description = "Publish MOD to Factorio MOD Portal"
 depends = ["build"]

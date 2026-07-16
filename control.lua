@@ -204,9 +204,14 @@ end
 
 --- Shows flying text at `player`'s position naming the paving item `name`,
 --- noting when it could also serve as an underlay for other paving items.
+--- Does nothing if `name` no longer exists (an announcement queued in
+--- `storage` can outlive its item's mod across a save/load).
 local function announce_paving_item(player, name)
   local entry = get_paving_items()[name]
-  local message_key = entry and can_serve_as_underlay(name, entry)
+  if not entry then
+    return
+  end
+  local message_key = can_serve_as_underlay(name, entry)
     and "select-and-pave-messages.now-paving-underlay"
     or "select-and-pave-messages.now-paving"
   player.create_local_flying_text({

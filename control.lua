@@ -9,6 +9,8 @@ local previous_item_input_name = "select-and-pave-previous-item"
 -- load rather than kept in `storage`.
 local paving_items
 local item_recipes
+-- item name -> whether it can serve as an underlay (see can_serve_as_underlay)
+local underlay_capability = {}
 
 local function tile_prototype_name(tile_prototype)
   return tile_prototype.name
@@ -192,7 +194,7 @@ end
 --- Independent of any specific tile, force research state, or platform -- a
 --- tile-agnostic classification for display purposes, not the precise
 --- per-tile check `choose_underlay` performs when actually placing ghosts.
-local function can_serve_as_underlay(name, entry)
+local function compute_underlay_capability(name, entry)
   local result_tile = prototypes.tile[entry.result_name]
   if not result_tile then
     return false
@@ -210,6 +212,16 @@ local function can_serve_as_underlay(name, entry)
     end
   end
   return false
+end
+
+--- Memoized front of compute_underlay_capability: O(items^2 x tile
+--- prototypes) over immutable prototypes only, so each item is classified at
+--- most once per game load instead of on every announcement.
+local function can_serve_as_underlay(name, entry)
+  if underlay_capability[name] == nil then
+    underlay_capability[name] = compute_underlay_capability(name, entry)
+  end
+  return underlay_capability[name]
 end
 
 --- Shows flying text at `player`'s position naming the paving item `name`,

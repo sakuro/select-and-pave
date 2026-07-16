@@ -60,6 +60,11 @@ end
 --- already paved too, since re-placing it under drag-select just spends the
 --- item on a thaw that has no heat source to hold, and will refreeze right
 --- back.
+---
+--- Known limitation: the engine evaluates `condition` over a square of
+--- `place_as_tile.condition_size` tiles around the position; this
+--- reimplementation checks only the single tile. Vanilla items all use
+--- size 1, but a modded item with a larger radius will diverge here.
 function paving.matches(tile_name, collision_mask_layers, normalized, thawed_name)
   if tile_name == normalized.result_name or thawed_name == normalized.result_name then
     return false -- already paved

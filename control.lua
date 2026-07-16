@@ -541,18 +541,20 @@ local function process_selection(event, is_alt)
   restore_cursor(player, held_name, pending.quality, pending.from_ghost)
 end
 
-script.on_init(function()
-  storage.pending = {}
-  storage.last_used = {}
-  storage.pending_announce = {}
-end)
+-- Every storage field this MOD uses, initialized both on first install
+-- (on_init) and when a save made with an older version that lacks some of
+-- them is loaded (on_configuration_changed). New fields only need a line
+-- here.
+local function init_storage()
+  storage.pending = storage.pending or {}
+  storage.last_used = storage.last_used or {}
+  storage.pending_announce = storage.pending_announce or {}
+end
+
+script.on_init(init_storage)
+script.on_configuration_changed(init_storage)
 
 script.on_nth_tick(6, function()
-  -- on_init only runs the first time this MOD is added to a save; a save
-  -- that already had an earlier version (without pending_announce, e.g.
-  -- from dev testing where the version string doesn't change between
-  -- iterations) goes straight to on_load, leaving the field nil.
-  storage.pending_announce = storage.pending_announce or {}
   for player_index, announcement in pairs(storage.pending_announce) do
     if game.tick >= announcement.at_tick then
       local player = game.get_player(player_index)

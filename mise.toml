@@ -2,6 +2,7 @@
 gh = "2.96.0"
 jq = "1.8.2"
 "github:sakuro/factorix" = "0.21.0"
+lua = "5.2.4"
 
 [settings]
 minimum_release_age = "3d"

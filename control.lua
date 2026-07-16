@@ -292,35 +292,29 @@ local function find_inventory_stack(player, item_name, quality)
   return nil
 end
 
---- If the player is holding nothing at all, tries to put the last item they
---- paved with back in their hand -- a real stack from inventory if they
---- still have one, otherwise a cursor_ghost preview -- so activating with
---- empty hands repeats the last paving item instead of just failing.
-local function equip_last_used(player)
+--- What activating with empty hands should fall back to: the last item the
+--- player paved with, treated like a real stack if they still have one in
+--- inventory (its quality is returned so that exact stack is restored
+--- afterwards) or like a cursor_ghost preview otherwise. Returns the same
+--- name, quality, from_ghost triple as get_held_item_name, or nil if they
+--- never paved, the item no longer exists, or there is no cursor to equip.
+local function last_used_item(player)
   local last_used = storage.last_used[player.index]
-  if not last_used or not get_paving_items()[last_used] then
-    return false
-  end
-
-  local cursor_stack = player.cursor_stack
-  if not cursor_stack then
-    return false
+  if not last_used or not get_paving_items()[last_used] or not player.cursor_stack then
+    return nil
   end
 
   local stack = find_inventory_stack(player, last_used)
   if stack then
-    cursor_stack.swap_stack(stack)
-    return true
+    return last_used, stack.quality.name, false
   end
-
-  player.cursor_ghost = {name = last_used}
-  return true
+  return last_used, nil, true
 end
 
 local function activate(player)
   local held_name, held_quality, from_ghost = get_held_item_name(player)
-  if not held_name and equip_last_used(player) then
-    held_name, held_quality, from_ghost = get_held_item_name(player)
+  if not held_name then
+    held_name, held_quality, from_ghost = last_used_item(player)
   end
 
   local entry = held_name and get_paving_items()[held_name]

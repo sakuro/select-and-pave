@@ -64,17 +64,19 @@ local function define_selection_tool(candidate, candidates)
     end
   end
 
+  -- No count_button_color: the engine shows no tile-count badge for modes
+  -- with tile_filters set (observed in 2.0 -- unfiltered modes count every
+  -- tile in the drag box, filtered ones display nothing), so there is no
+  -- counter to color. The badge can't be made to show a paveable-tile count.
   local select = {
     mode = {"any-tile"},
     cursor_box_type = "copy",
     border_color = {r = 0.9, g = 0.7, b = 0.2},
-    count_button_color = {r = 0.9, g = 0.7, b = 0.2},
   }
   local alt_select = {
     mode = {"any-tile"},
     cursor_box_type = "copy",
     border_color = {r = 0.3, g = 0.6, b = 0.9},
-    count_button_color = {r = 0.3, g = 0.6, b = 0.9},
   }
   -- An empty whitelist is treated as "no filter" by the engine, which would
   -- silently make the native counter report every tile in the drag box

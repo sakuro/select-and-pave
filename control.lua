@@ -8,7 +8,7 @@ local previous_item_input_name = "select-and-pave-previous-item"
 -- Prototypes are immutable after load, so these are computed once per game
 -- load rather than kept in `storage`.
 local paving_items
-local unlock_technologies
+local item_recipes
 
 local function tile_prototype_name(tile_prototype)
   return tile_prototype.name
@@ -21,47 +21,23 @@ local function specificity_of(place_as_tile)
   return math.huge
 end
 
---- @return table<string, table<string, boolean>> item name -> set of
---- technology names, any one of which unlocks a recipe producing that item.
---- Items with a recipe already enabled at the start of the game (no
---- research needed) are omitted entirely.
-local function get_unlock_technologies()
-  if unlock_technologies then
-    return unlock_technologies
+--- @return table<string, table<string, boolean>> item name -> set of names
+--- of recipes producing that item. Items no recipe produces are absent.
+local function get_item_recipes()
+  if item_recipes then
+    return item_recipes
   end
 
-  -- recipe name -> set of item names it produces
-  local recipe_items = {}
-  -- item name -> true if some recipe producing it needs no research
-  local always_available = {}
+  item_recipes = {}
   for recipe_name, recipe in pairs(prototypes.recipe) do
-    local items = {}
     for _, product in pairs(recipe.products) do
       if product.type == "item" then
-        items[product.name] = true
-        if recipe.enabled then
-          always_available[product.name] = true
-        end
-      end
-    end
-    recipe_items[recipe_name] = items
-  end
-
-  unlock_technologies = {}
-  for tech_name, technology in pairs(prototypes.technology) do
-    for _, effect in pairs(technology.effects) do
-      if effect.type == "unlock-recipe" then
-        for item_name in pairs(recipe_items[effect.recipe] or {}) do
-          if not always_available[item_name] then
-            unlock_technologies[item_name] = unlock_technologies[item_name] or {}
-            unlock_technologies[item_name][tech_name] = true
-          end
-        end
+        item_recipes[product.name] = item_recipes[product.name] or {}
+        item_recipes[product.name][recipe_name] = true
       end
     end
   end
-
-  return unlock_technologies
+  return item_recipes
 end
 
 local function build_paving_entry(name, place_as_tile)
@@ -69,7 +45,7 @@ local function build_paving_entry(name, place_as_tile)
     result_name = place_as_tile.result.name,
     normalized = paving.normalize(place_as_tile, tile_prototype_name),
     specificity = specificity_of(place_as_tile),
-    required_technologies = get_unlock_technologies()[name],
+    recipes = get_item_recipes()[name],
   }
 end
 
@@ -89,16 +65,17 @@ local function get_paving_items()
   return paving_items
 end
 
---- Whether `force` can currently obtain `entry`'s item (no gating recipe, or
---- at least one unlocking technology already researched).
+--- Whether `force` can currently obtain `entry`'s item: some recipe
+--- producing it is enabled for the force (whether via research or enabled by
+--- script). Items no recipe produces are assumed obtainable some other way
+--- (mining, scripts) rather than locked out forever.
 local function is_available(entry, force)
-  local technologies = entry.required_technologies
-  if not technologies then
+  if not entry.recipes then
     return true
   end
-  for tech_name in pairs(technologies) do
-    local technology = force.technologies[tech_name]
-    if technology and technology.researched then
+  for recipe_name in pairs(entry.recipes) do
+    local recipe = force.recipes[recipe_name]
+    if recipe and recipe.enabled then
       return true
     end
   end

@@ -4,7 +4,7 @@ local shortcut_name = "select-and-pave-activate"
 local custom_input_name = "select-and-pave-activate-input"
 local next_item_input_name = "select-and-pave-next-item"
 local previous_item_input_name = "select-and-pave-previous-item"
-local keep_tool_setting = "select-and-pave-keep-tool"
+local after_selection_setting = "select-and-pave-after-selection"
 
 -- Prototypes are immutable after load, so these are computed once per game
 -- load rather than kept in `storage`.
@@ -627,14 +627,19 @@ local function process_selection(event, is_alt)
     storage.last_used[event.player_index] = held_name
   end
 
-  -- With keep-tool on, the tool session just continues: `pending` stays so
-  -- rotation and the cursor-changed handler keep working, and the latter is
-  -- what eventually restores the held item once the player clears the tool.
-  if settings.get_player_settings(player)[keep_tool_setting].value then
+  -- With keep-tool the session just continues: `pending` stays so rotation
+  -- and the cursor-changed handler keep working, and the latter is what
+  -- eventually restores the held item once the player clears the tool.
+  local after = settings.get_player_settings(player)[after_selection_setting].value
+  if after == "keep-tool" then
     return
   end
   storage.pending[event.player_index] = nil
-  restore_cursor(player, held_name, pending.quality, pending.from_ghost)
+  if after == "restore-item" then
+    restore_cursor(player, held_name, pending.quality, pending.from_ghost)
+  else -- "clear-cursor": done paving, leave the hand empty
+    player.cursor_stack.clear()
+  end
 end
 
 -- Every storage field this MOD uses, initialized both on first install

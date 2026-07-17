@@ -18,9 +18,12 @@ data:extend({
     action = "lua",
   },
   {
-    -- Unassigned by default: mods setting a default mouse-wheel key_sequence
-    -- has a history of not being reliably recognized, so this is left for
-    -- players to bind themselves (e.g. Shift + mouse wheel).
+    -- Unassigned by default. A mod-set mouse-wheel default does work in 2.0
+    -- (lowercase mouse-wheel-* spelling), but shipping one would, combined
+    -- with consuming below, take that modifier + wheel zoom away from every
+    -- player at all times — consuming is a static prototype attribute and
+    -- cannot be limited to while the tool is held. Left unbound so only
+    -- players who opt into a binding (e.g. Shift + mouse wheel) give it up.
     --
     -- consuming: vanilla zoom fires on wheel input regardless of held
     -- modifiers, so a modifier + wheel binding would otherwise rotate and

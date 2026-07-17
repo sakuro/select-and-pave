@@ -11,6 +11,8 @@ Drag-select an area to pave it with the item in your hand.
 3. Drag a box over the area to pave. Tile ghosts are placed for construction robots (or manual building) to complete.
 4. Hold Shift while dragging (Factorio calls this "alt-select") to also place an underlay (e.g. landfill) where the held item can't go directly, such as water.
 
+After each drag the selection tool stays in your hand so you can pave several areas in a row; press Q (clear cursor) to put it away and get the paving item back. Disable the per-player setting "Keep tool after selection" to have it put away automatically after every selection.
+
 While selecting, you can switch to the next/previous paving item with the "Pave Selection: Next/Previous Item" controls. These have no default key, so bind them yourself under Settings > Controls (e.g. Shift + mouse wheel works well).
 
 ## Related mods

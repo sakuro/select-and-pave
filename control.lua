@@ -4,6 +4,7 @@ local shortcut_name = "select-and-pave-activate"
 local custom_input_name = "select-and-pave-activate-input"
 local next_item_input_name = "select-and-pave-next-item"
 local previous_item_input_name = "select-and-pave-previous-item"
+local keep_tool_setting = "select-and-pave-keep-tool"
 
 -- Prototypes are immutable after load, so these are computed once per game
 -- load rather than kept in `storage`.
@@ -605,7 +606,6 @@ local function process_selection(event, is_alt)
   if not pending then
     return
   end
-  storage.pending[event.player_index] = nil
 
   local player = game.get_player(event.player_index)
   local entry = get_paving_items()[held_name]
@@ -614,6 +614,14 @@ local function process_selection(event, is_alt)
   if entry then
     storage.last_used[event.player_index] = held_name
   end
+
+  -- With keep-tool on, the tool session just continues: `pending` stays so
+  -- rotation and the cursor-changed handler keep working, and the latter is
+  -- what eventually restores the held item once the player clears the tool.
+  if settings.get_player_settings(player)[keep_tool_setting].value then
+    return
+  end
+  storage.pending[event.player_index] = nil
   restore_cursor(player, held_name, pending.quality, pending.from_ghost)
 end
 

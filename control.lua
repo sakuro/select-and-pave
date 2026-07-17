@@ -136,10 +136,8 @@ local function is_already_paved(tile, entry)
   return tile.name == entry.result_name or (thawed and thawed.name == entry.result_name) or false
 end
 
-local function is_placeable_on_tile_prototype(tile_prototype, entry)
-  local mask = tile_prototype.collision_mask
-  local thawed = tile_prototype.thawed_variant
-  return paving.matches(tile_prototype.name, mask and mask.layers, entry.normalized, thawed and thawed.name)
+local function is_placeable_on_tile_prototype(entry, tile_prototype)
+  return paving.matches(entry.normalized, paving.normalize_tile(tile_prototype, tile_prototype_name))
 end
 
 local function position_key(position)
@@ -172,7 +170,7 @@ local function underlay_candidate(surface, name, candidate_entry, tile, target_e
     return nil
   end
 
-  if not is_placeable_on_tile_prototype(result_tile, target_entry) then
+  if not is_placeable_on_tile_prototype(target_entry, result_tile) then
     return nil
   end
 
@@ -220,12 +218,12 @@ local function compute_underlay_capability(name, entry)
     return false
   end
   for other_name, other_entry in pairs(get_paving_items()) do
-    if other_name ~= name and is_placeable_on_tile_prototype(result_tile, other_entry) then
+    if other_name ~= name and is_placeable_on_tile_prototype(other_entry, result_tile) then
       for _, tile_prototype in pairs(prototypes.tile) do
         local mask = tile_prototype.collision_mask
         if mask and mask.layers and mask.layers[water_layer]
-          and is_placeable_on_tile_prototype(tile_prototype, entry)
-          and not is_placeable_on_tile_prototype(tile_prototype, other_entry) then
+          and is_placeable_on_tile_prototype(entry, tile_prototype)
+          and not is_placeable_on_tile_prototype(other_entry, tile_prototype) then
           return true
         end
       end

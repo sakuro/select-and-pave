@@ -42,6 +42,11 @@ local unconditional = paving.normalize({result = "plain-result"}, identity)
 local ground = {ground_tile = true}
 local water = {water_tile = true, item = true, player = true}
 
+--- Tile descriptor literal, shaped like paving.normalize_tile's result.
+local function tile(name, layers, thawed_name)
+  return {name = name, layers = layers, thawed_name = thawed_name}
+end
+
 -- normalize
 check("normalize keeps result name", concrete.result_name, "concrete")
 check("normalize keeps condition layers", concrete.condition_layers.water_tile, true)
@@ -52,32 +57,46 @@ check("normalize treats empty tile_condition as none",
 check("normalize extracts names via name_of",
   paving.normalize({result = {name = "obj"}}, function(ref) return ref.name end).result_name, "obj")
 
+-- normalize_tile: data-stage shape (plain strings) and runtime shape (objects)
+local data_tile = paving.normalize_tile(
+  {name = "frozen-concrete", collision_mask = {layers = ground}, thawed_variant = "concrete"}, identity)
+check("normalize_tile keeps name", data_tile.name, "frozen-concrete")
+check("normalize_tile lifts mask layers", data_tile.layers.ground_tile, true)
+check("normalize_tile keeps thawed name", data_tile.thawed_name, "concrete")
+local runtime_tile = paving.normalize_tile(
+  {name = "frozen-concrete", collision_mask = {layers = ground}, thawed_variant = {name = "concrete"}},
+  function(ref) return ref.name end)
+check("normalize_tile extracts thawed name via name_of", runtime_tile.thawed_name, "concrete")
+local bare_tile = paving.normalize_tile({name = "void"}, identity)
+check("normalize_tile without mask", bare_tile.layers, nil)
+check("normalize_tile without thawed variant", bare_tile.thawed_name, nil)
+
 -- matches: already-paved short circuit
-check("own result tile is already paved", paving.matches("concrete", ground, concrete, nil), false)
+check("own result tile is already paved", paving.matches(concrete, tile("concrete", ground)), false)
 check("frozen tile thawing into result is already paved",
-  paving.matches("frozen-concrete", ground, concrete, "concrete"), false)
+  paving.matches(concrete, tile("frozen-concrete", ground, "concrete")), false)
 check("frozen tile thawing into something else is not",
-  paving.matches("frozen-x", ground, concrete, "x"), true)
+  paving.matches(concrete, tile("frozen-x", ground, "x")), true)
 
 -- matches: tile_condition whitelist
-check("landfill allowed on listed water", paving.matches("water", water, landfill, nil), true)
+check("landfill allowed on listed water", paving.matches(landfill, tile("water", water)), true)
 check("landfill rejected on unlisted tile",
-  paving.matches("oil-ocean-shallow", {water_tile = true}, landfill, nil), false)
+  paving.matches(landfill, tile("oil-ocean-shallow", {water_tile = true})), false)
 check("listed tile still vetoed by condition layers",
-  paving.matches("water", {ground_tile = true}, landfill, nil), false)
+  paving.matches(landfill, tile("water", {ground_tile = true})), false)
 
 -- matches: collision-mask condition (default: blocked where layers intersect)
-check("concrete blocked on water", paving.matches("water", water, concrete, nil), false)
-check("concrete allowed on ground", paving.matches("grass", ground, concrete, nil), true)
-check("nil mask cannot intersect", paving.matches("void", nil, concrete, nil), true)
+check("concrete blocked on water", paving.matches(concrete, tile("water", water)), false)
+check("concrete allowed on ground", paving.matches(concrete, tile("grass", ground)), true)
+check("nil mask cannot intersect", paving.matches(concrete, tile("void", nil)), true)
 
 -- matches: invert flips the condition into an allowlist
-check("invert item allowed where mask matches", paving.matches("water", water, invert_item, nil), true)
-check("invert item rejected where mask does not", paving.matches("grass", ground, invert_item, nil), false)
-check("invert item rejected on nil mask", paving.matches("void", nil, invert_item, nil), false)
+check("invert item allowed where mask matches", paving.matches(invert_item, tile("water", water)), true)
+check("invert item rejected where mask does not", paving.matches(invert_item, tile("grass", ground)), false)
+check("invert item rejected on nil mask", paving.matches(invert_item, tile("void", nil)), false)
 
 -- matches: no condition at all
-check("unconditional item places anywhere", paving.matches("anything", water, unconditional, nil), true)
+check("unconditional item places anywhere", paving.matches(unconditional, tile("anything", water)), true)
 
 -- condition_references
 check("references its own layer", paving.condition_references(invert_item, "water_tile"), true)

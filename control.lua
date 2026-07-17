@@ -4,7 +4,7 @@ local shortcut_name = "select-and-pave-activate"
 local custom_input_name = "select-and-pave-activate-input"
 local next_item_input_name = "select-and-pave-next-item"
 local previous_item_input_name = "select-and-pave-previous-item"
-local keep_tool_setting = "select-and-pave-keep-tool"
+local after_selection_setting = "select-and-pave-after-selection"
 
 -- Prototypes are immutable after load, so these are computed once per game
 -- load rather than kept in `storage`.
@@ -387,7 +387,7 @@ local function activate(player)
     return
   end
 
-  storage.pending[player.index] = {name = held_name, from_ghost = from_ghost, quality = held_quality}
+  storage.pending[player.index] = {from_ghost = from_ghost, quality = held_quality}
   player.cursor_stack.set_stack({name = paving.tool_prefix .. held_name, count = 1})
   queue_paving_announcement(player, held_name)
 end
@@ -504,7 +504,7 @@ local function rotate_item(player, direction)
   end
 
   local next_stack = find_inventory_stack(player, next_name)
-  storage.pending[player.index] = {name = next_name, from_ghost = not next_stack}
+  storage.pending[player.index] = {from_ghost = not next_stack}
   player.cursor_stack.set_stack({name = paving.tool_prefix .. next_name, count = 1})
   queue_paving_announcement(player, next_name)
 end
@@ -627,14 +627,19 @@ local function process_selection(event, is_alt)
     storage.last_used[event.player_index] = held_name
   end
 
-  -- With keep-tool on, the tool session just continues: `pending` stays so
-  -- rotation and the cursor-changed handler keep working, and the latter is
-  -- what eventually restores the held item once the player clears the tool.
-  if settings.get_player_settings(player)[keep_tool_setting].value then
+  -- With keep-tool the session just continues: `pending` stays so rotation
+  -- and the cursor-changed handler keep working, and the latter is what
+  -- eventually restores the held item once the player clears the tool.
+  local after = settings.get_player_settings(player)[after_selection_setting].value
+  if after == "keep-tool" then
     return
   end
   storage.pending[event.player_index] = nil
-  restore_cursor(player, held_name, pending.quality, pending.from_ghost)
+  if after == "restore-item" then
+    restore_cursor(player, held_name, pending.quality, pending.from_ghost)
+  else -- "clear-cursor": done paving, leave the hand empty
+    player.cursor_stack.clear()
+  end
 end
 
 -- Every storage field this MOD uses, initialized both on first install
@@ -694,28 +699,19 @@ script.on_event(previous_item_input_name, function(event)
 end)
 
 script.on_event(defines.events.on_player_cursor_stack_changed, function(event)
-  local pending = storage.pending[event.player_index]
-  if not pending then
+  if not storage.pending[event.player_index] then
     return
   end
   local player = game.get_player(event.player_index)
   local cursor_stack = player.cursor_stack
   local holding_tool = cursor_stack and cursor_stack.valid_for_read
     and held_item_name_from_tool(cursor_stack.name) ~= nil
-  if holding_tool then
-    return
-  end
-  storage.pending[event.player_index] = nil
-
-  -- Cancelling the selection (Q) destroys the only-in-cursor tool and leaves
-  -- the hand empty; give back what activate() swapped out, same as selection
-  -- completion does. If the cursor instead holds something else now (the
-  -- player switched to another item themselves), leave their choice alone.
-  -- pending.name can be nil in a save from before it was recorded, or name
-  -- an item whose mod is gone (same staleness as equip_last_used guards).
-  local hand_empty = not (cursor_stack and cursor_stack.valid_for_read) and not player.cursor_ghost
-  if hand_empty and pending.name and get_paving_items()[pending.name] then
-    restore_cursor(player, pending.name, pending.quality, pending.from_ghost)
+  if not holding_tool then
+    -- Clearing the tool keeps vanilla Q semantics: the hand stays empty. The
+    -- after-selection setting governs completed selections only; restoring
+    -- the held item here would hijack a gesture that universally means
+    -- "put it away".
+    storage.pending[event.player_index] = nil
   end
 end)
 

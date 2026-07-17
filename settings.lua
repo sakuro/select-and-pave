@@ -1,8 +1,9 @@
 data:extend({
   {
-    type = "bool-setting",
-    name = "select-and-pave-keep-tool",
+    type = "string-setting",
+    name = "select-and-pave-after-selection",
     setting_type = "runtime-per-user",
-    default_value = true,
+    default_value = "keep-tool",
+    allowed_values = {"keep-tool", "restore-item", "clear-cursor"},
   },
 })

@@ -13,7 +13,7 @@ Drag-select an area to pave it with the item in your hand.
 
 After each drag the selection tool stays in your hand so you can pave several areas in a row; press Q (clear cursor) to put it away. The per-player setting "Behavior after selection" can instead return the paving item, or leave the hand empty, after every selection.
 
-While selecting, you can switch to the next/previous paving item with the "Pave Selection: Next/Previous Item" controls. These have no default key, so bind them yourself under Settings > Controls (e.g. Shift + mouse wheel works well).
+While selecting, you can switch to the next/previous paving item with the "Pave Selection: Next/Previous Item" controls. These have no default key, so bind them yourself under Settings > Controls (e.g. Ctrl + mouse wheel, which vanilla leaves unused — Shift + mouse wheel collides with blueprint book and clipboard cycling).
 
 ## Related mods
 

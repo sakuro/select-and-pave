@@ -15,15 +15,11 @@ local function identity(value)
   return value
 end
 
-local function matches_tile(tile_name, tile_prototype, normalized)
-  local mask = tile_prototype.collision_mask
-  return paving.matches(tile_name, mask and mask.layers, normalized, tile_prototype.thawed_variant)
-end
-
 --- Defines a `select-and-pave-tool-<name>` selection-tool prototype for
 --- `candidate`. `candidates` is the full list of place_as_tile items, used
---- to work out which tiles some underlay could make paveable.
-local function define_selection_tool(candidate, candidates)
+--- to work out which tiles some underlay could make paveable. `tiles` maps
+--- tile name -> descriptor (paving.normalize_tile) for all of data.raw.tile.
+local function define_selection_tool(candidate, candidates, tiles)
   local name, item, normalized = candidate.name, candidate.item, candidate.normalized
 
   -- Items whose result tile exists and accepts this item on top, i.e.
@@ -31,9 +27,8 @@ local function define_selection_tool(candidate, candidates)
   -- the item itself: matches() rejects placing a tile on its own result.)
   local underlay_normals = {}
   for _, other in pairs(candidates) do
-    local result_name = other.normalized.result_name
-    local result_prototype = data.raw.tile[result_name]
-    if result_prototype and matches_tile(result_name, result_prototype, normalized) then
+    local result_tile = tiles[other.normalized.result_name]
+    if result_tile and paving.matches(normalized, result_tile) then
       underlay_normals[#underlay_normals + 1] = other.normalized
     end
   end
@@ -49,14 +44,14 @@ local function define_selection_tool(candidate, candidates)
   -- control.lua's is_already_paved.
   local tile_filters = {}
   local alt_tile_filters = {}
-  for tile_name, tile_prototype in pairs(data.raw.tile) do
-    if matches_tile(tile_name, tile_prototype, normalized) then
+  for tile_name, tile in pairs(tiles) do
+    if paving.matches(normalized, tile) then
       tile_filters[#tile_filters + 1] = tile_name
       alt_tile_filters[#alt_tile_filters + 1] = tile_name
     elseif tile_name ~= normalized.result_name
-      and tile_prototype.thawed_variant ~= normalized.result_name then
+      and tile.thawed_name ~= normalized.result_name then
       for _, underlay_normalized in pairs(underlay_normals) do
-        if matches_tile(tile_name, tile_prototype, underlay_normalized) then
+        if paving.matches(underlay_normalized, tile) then
           alt_tile_filters[#alt_tile_filters + 1] = tile_name
           break
         end
@@ -133,6 +128,14 @@ for _, group in pairs(data.raw) do
   end
 end
 
+-- Flattened once here rather than per item inside define_selection_tool;
+-- data:extend there only adds selection-tools, so data.raw.tile is stable
+-- across the loop.
+local tiles = {}
+for tile_name, tile_prototype in pairs(data.raw.tile) do
+  tiles[tile_name] = paving.normalize_tile(tile_prototype, identity)
+end
+
 for _, candidate in pairs(paving_candidates) do
-  define_selection_tool(candidate, paving_candidates)
+  define_selection_tool(candidate, paving_candidates, tiles)
 end

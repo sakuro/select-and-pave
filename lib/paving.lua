@@ -1,9 +1,10 @@
 -- Shared between data-final-fixes.lua (data stage) and control.lua (runtime).
--- Data stage sees `place_as_tile.result`/`tile_condition` as plain tile-name
--- strings; runtime sees `place_as_tile_result.result`/`tile_condition` as
--- LuaTilePrototype objects. `normalize` flattens both into plain strings via
--- the caller-supplied `name_of`, so `matches` itself never touches either
--- stage's globals and can be required from both.
+-- Data stage sees tile references (`place_as_tile.result`/`tile_condition`,
+-- `thawed_variant`) as plain tile-name strings; runtime sees them as
+-- LuaTilePrototype objects. `normalize` and `normalize_tile` flatten both
+-- stages' shapes into plain-string forms via the caller-supplied `name_of`,
+-- so `matches` itself never touches either stage's globals and can be
+-- required from both.
 local paving = {}
 
 paving.tool_prefix = "select-and-pave-tool-"
@@ -31,6 +32,22 @@ function paving.normalize(place_as_tile, name_of)
   }
 end
 
+--- Flattens a tile prototype (data-stage table or runtime LuaTilePrototype)
+--- into the plain descriptor `matches` takes: the tile's name, its
+--- collision-mask layers (nil when the prototype has no mask), and the name
+--- of the tile it thaws into if frozen (nil otherwise).
+--- @param tile_prototype table data-stage tile prototype or runtime LuaTilePrototype
+--- @param name_of function extracts a plain tile-name string from a tile reference
+function paving.normalize_tile(tile_prototype, name_of)
+  local mask = tile_prototype.collision_mask
+  local thawed = tile_prototype.thawed_variant
+  return {
+    name = tile_prototype.name,
+    layers = mask and mask.layers,
+    thawed_name = thawed and name_of(thawed),
+  }
+end
+
 local function layers_intersect(condition_layers, collision_mask_layers)
   if not collision_mask_layers then
     return false
@@ -53,13 +70,11 @@ function paving.condition_references(normalized, layer)
 end
 
 --- Whether a normalized place_as_tile allows its result tile to be placed
---- over a tile named `tile_name` with collision mask layers
---- `collision_mask_layers` (a set of layer-name -> true, or nil).
---- `thawed_name`, if given, is the tile `tile_name` thaws into (e.g.
---- Aquilo's frozen-concrete thaws into concrete) -- a frozen tile counts as
---- already paved too, since re-placing it under drag-select just spends the
---- item on a thaw that has no heat source to hold, and will refreeze right
---- back.
+--- over `tile`, a descriptor from `normalize_tile`. A frozen tile whose
+--- `thawed_name` is the item's own result (e.g. Aquilo's frozen-concrete
+--- thaws into concrete) counts as already paved too, since re-placing it
+--- under drag-select just spends the item on a thaw that has no heat
+--- source to hold, and will refreeze right back.
 ---
 --- Known limitation: the engine evaluates `condition` over a square of
 --- `place_as_tile.condition_size` tiles around the position; this
@@ -69,12 +84,12 @@ end
 --- engine instead (control.lua's can_place_tile_ghost); this function
 --- remains for data-stage filters and prototype-vs-prototype checks,
 --- where no position exists to ask the engine about.
-function paving.matches(tile_name, collision_mask_layers, normalized, thawed_name)
-  if tile_name == normalized.result_name or thawed_name == normalized.result_name then
+function paving.matches(normalized, tile)
+  if tile.name == normalized.result_name or tile.thawed_name == normalized.result_name then
     return false -- already paved
   end
 
-  if normalized.tile_condition_names and not normalized.tile_condition_names[tile_name] then
+  if normalized.tile_condition_names and not normalized.tile_condition_names[tile.name] then
     return false
   end
 
@@ -82,7 +97,7 @@ function paving.matches(tile_name, collision_mask_layers, normalized, thawed_nam
     return true
   end
 
-  local intersects = layers_intersect(normalized.condition_layers, collision_mask_layers)
+  local intersects = layers_intersect(normalized.condition_layers, tile.layers)
 
   -- `condition` names layers this item's tile is blocked by default (e.g.
   -- concrete's "water-tile"); `invert` flips it into an allowlist (e.g.

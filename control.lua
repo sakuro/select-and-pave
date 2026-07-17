@@ -278,6 +278,15 @@ local function queue_paving_announcement(player, name)
   storage.pending_announce[player.index] = {name = name, at_tick = game.tick + ANNOUNCE_DELAY_TICKS}
 end
 
+--- Extracts the held item's name from a `select-and-pave-tool-<name>`
+--- prototype name, or nil if `tool_name` isn't one of ours.
+local function held_item_name_from_tool(tool_name)
+  if tool_name and tool_name:sub(1, #paving.tool_prefix) == paving.tool_prefix then
+    return tool_name:sub(#paving.tool_prefix + 1)
+  end
+  return nil
+end
+
 --- Reads the item the player is holding, either for real (cursor_stack) or
 --- as a preview (cursor_ghost). Returns nil if neither is set. Quality is
 --- tracked only so the exact same stack/preview can be restored afterwards
@@ -333,6 +342,18 @@ local function last_used_item(player)
 end
 
 local function activate(player)
+  -- Already holding our selection tool (common with keep-tool on): there is
+  -- nothing to swap, so just re-announce what it paves with -- without this
+  -- the tool itself would be read as the held item and, not being a paving
+  -- item, trip the "hold a paving item" message.
+  local cursor_stack = player.cursor_stack
+  local tool_item_name = cursor_stack and cursor_stack.valid_for_read
+    and held_item_name_from_tool(cursor_stack.name)
+  if tool_item_name then
+    queue_paving_announcement(player, tool_item_name)
+    return
+  end
+
   local held_name, held_quality, from_ghost = get_held_item_name(player)
   if not held_name then
     held_name, held_quality, from_ghost = last_used_item(player)
@@ -405,15 +426,6 @@ local function collect_existing_ghosts(surface, area, force)
     existing[ghost_key(ghost.position, ghost.ghost_name)] = true
   end
   return existing
-end
-
---- Extracts the held item's name from a `select-and-pave-tool-<name>`
---- prototype name, or nil if `tool_name` isn't one of ours.
-local function held_item_name_from_tool(tool_name)
-  if tool_name and tool_name:sub(1, #paving.tool_prefix) == paving.tool_prefix then
-    return tool_name:sub(#paving.tool_prefix + 1)
-  end
-  return nil
 end
 
 --- Item names from get_paving_items(), sorted for deterministic rotation.

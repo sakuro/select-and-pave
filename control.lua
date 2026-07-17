@@ -145,15 +145,16 @@ local function position_key(position)
 end
 
 --- Returns {name, entry} if `candidate_entry` is a viable underlay for
---- `target_entry` on `tile` for `force` (currently obtainable by that force,
---- usable on this surface, placeable on `tile`, and `target_entry` in turn
---- placeable on its result), or nil otherwise.
-local function underlay_candidate(surface, name, candidate_entry, tile, target_entry, force, on_platform)
-  if on_platform and not usable_on_platform(candidate_entry) then
+--- the selection's target entry on `tile` (currently obtainable by the
+--- selecting force, usable on this surface, placeable on `tile`, and the
+--- target in turn placeable on its result), or nil otherwise. `context` is
+--- a selection_context.
+local function underlay_candidate(context, tile, name, candidate_entry)
+  if context.on_platform and not usable_on_platform(candidate_entry) then
     return nil
   end
 
-  if not is_available(candidate_entry, force) then
+  if not is_available(candidate_entry, context.force) then
     return nil
   end
 
@@ -161,7 +162,7 @@ local function underlay_candidate(surface, name, candidate_entry, tile, target_e
   -- of the candidate's own result as coverable terrain (thawing it is not
   -- underlaying).
   if is_already_paved(tile, candidate_entry)
-    or not can_place_tile_ghost(surface, tile.position, candidate_entry.result_name, force) then
+    or not can_place_tile_ghost(context.surface, tile.position, candidate_entry.result_name, context.force) then
     return nil
   end
 
@@ -170,7 +171,7 @@ local function underlay_candidate(surface, name, candidate_entry, tile, target_e
     return nil
   end
 
-  if not is_placeable_on_tile_prototype(target_entry, result_tile) then
+  if not is_placeable_on_tile_prototype(context.entry, result_tile) then
     return nil
   end
 
@@ -178,16 +179,17 @@ local function underlay_candidate(surface, name, candidate_entry, tile, target_e
 end
 
 --- Finds a generic "underlay" item (e.g. landfill) whose place_as_tile is
---- valid on `tile`, and whose result tile `target_entry` would in turn be
---- placeable on. Only considers items `force` can currently obtain --
---- unresearched items are treated as if they didn't exist. Prefers the most
---- specific candidate (narrowest `tile_condition`) so a cheap, purpose-built
---- item like landfill is chosen over a broad, general-purpose one like
---- foundation; ties break alphabetically for determinism.
-local function choose_underlay(surface, tile, target_entry, force, on_platform)
+--- valid on `tile`, and whose result tile the selection's target entry
+--- would in turn be placeable on. Only considers items the selecting force
+--- can currently obtain -- unresearched items are treated as if they didn't
+--- exist. Prefers the most specific candidate (narrowest `tile_condition`)
+--- so a cheap, purpose-built item like landfill is chosen over a broad,
+--- general-purpose one like foundation; ties break alphabetically for
+--- determinism.
+local function choose_underlay(context, tile)
   local candidates = {}
   for name, candidate_entry in pairs(get_paving_items()) do
-    local candidate = underlay_candidate(surface, name, candidate_entry, tile, target_entry, force, on_platform)
+    local candidate = underlay_candidate(context, tile, name, candidate_entry)
     if candidate then
       candidates[#candidates + 1] = candidate
     end
@@ -506,18 +508,19 @@ local function place_ghost(surface, player, position, tile_name)
 end
 
 --- Places a `tile_name` ghost at `tile.position` unless one is already
---- there, recording it in `existing_ghosts` either way.
-local function place_ghost_once(surface, player, tile, tile_name, existing_ghosts)
+--- there, recording it in the context's `existing_ghosts` either way.
+local function place_ghost_once(context, tile, tile_name)
   local key = ghost_key(tile.position, tile_name)
-  if existing_ghosts[key] then
+  if context.existing_ghosts[key] then
     return
   end
-  place_ghost(surface, player, tile.position, tile_name)
-  existing_ghosts[key] = true
+  place_ghost(context.surface, context.player, tile.position, tile_name)
+  context.existing_ghosts[key] = true
 end
 
-local function process_tile(surface, player, tile, entry, is_alt, existing_ghosts, on_platform, underlay_cache)
-  if on_platform and not usable_on_platform(entry) then
+local function process_tile(context, tile)
+  local entry = context.entry
+  if context.on_platform and not usable_on_platform(entry) then
     return
   end
 
@@ -529,27 +532,26 @@ local function process_tile(surface, player, tile, entry, is_alt, existing_ghost
     return
   end
 
-  if can_place_tile_ghost(surface, tile.position, entry.result_name, player.force) then
-    place_ghost_once(surface, player, tile, entry.result_name, existing_ghosts)
+  if can_place_tile_ghost(context.surface, tile.position, entry.result_name, context.force) then
+    place_ghost_once(context, tile, entry.result_name)
     return
   end
 
-  if not is_alt then
+  if not context.is_alt then
     return
   end
 
   -- choose_underlay scans every paving item against every tile in the
-  -- selection, but its result depends only on the tile's name (target item,
-  -- force and platform are fixed within one selection), so large drags over
-  -- uniform terrain would repeat the same scan tens of thousands of times.
-  -- `false` records "no underlay" so misses are cached too. The engine check
-  -- inside is positional, so for an item with condition_size > 1 the cached
-  -- answer could differ between same-named tiles; vanilla items are all
-  -- size 1.
-  local underlay = underlay_cache[tile.name]
+  -- selection, but its result depends only on the tile's name (everything
+  -- else it reads is fixed in the context), so large drags over uniform
+  -- terrain would repeat the same scan tens of thousands of times. `false`
+  -- records "no underlay" so misses are cached too. The engine check inside
+  -- is positional, so for an item with condition_size > 1 the cached answer
+  -- could differ between same-named tiles; vanilla items are all size 1.
+  local underlay = context.underlay_cache[tile.name]
   if underlay == nil then
-    underlay = choose_underlay(surface, tile, entry, player.force, on_platform) or false
-    underlay_cache[tile.name] = underlay
+    underlay = choose_underlay(context, tile) or false
+    context.underlay_cache[tile.name] = underlay
   end
   if not underlay then
     return
@@ -561,8 +563,25 @@ local function process_tile(surface, player, tile, entry, is_alt, existing_ghost
   -- independently, so an underlay ghost placed earlier (by this MOD, a
   -- blueprint, or anything else) doesn't block the target ghost from still
   -- being added on top of it.
-  place_ghost_once(surface, player, tile, underlay.entry.result_name, existing_ghosts)
-  place_ghost_once(surface, player, tile, entry.result_name, existing_ghosts)
+  place_ghost_once(context, tile, underlay.entry.result_name)
+  place_ghost_once(context, tile, entry.result_name)
+end
+
+--- Everything about one selection that is fixed across its tiles -- who is
+--- paving what, where -- plus the two caches scoped to it. Threaded through
+--- process_tile and the underlay search instead of a long parameter list.
+local function selection_context(player, event, entry, is_alt)
+  local surface = event.surface
+  return {
+    surface = surface,
+    player = player,
+    force = player.force,
+    entry = entry,
+    is_alt = is_alt,
+    on_platform = surface.platform ~= nil,
+    existing_ghosts = collect_existing_ghosts(surface, event.area, player.force),
+    underlay_cache = {},
+  }
 end
 
 local function place_ghosts(player, event, entry, is_alt)
@@ -570,12 +589,9 @@ local function place_ghosts(player, event, entry, is_alt)
     return
   end
 
-  local surface = event.surface
-  local on_platform = surface.platform ~= nil
-  local existing_ghosts = collect_existing_ghosts(surface, event.area, player.force)
-  local underlay_cache = {}
+  local context = selection_context(player, event, entry, is_alt)
   for _, tile in pairs(event.tiles) do
-    process_tile(surface, player, tile, entry, is_alt, existing_ghosts, on_platform, underlay_cache)
+    process_tile(context, tile)
   end
 end
 

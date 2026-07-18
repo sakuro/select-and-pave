@@ -23,7 +23,7 @@ data:extend({
     -- with consuming below, take that modifier + wheel zoom away from every
     -- player at all times — consuming is a static prototype attribute and
     -- cannot be limited to while the tool is held. Left unbound so only
-    -- players who opt into a binding (e.g. Shift + mouse wheel) give it up.
+    -- players who opt into a binding (e.g. Ctrl + mouse wheel) give it up.
     --
     -- consuming: vanilla zoom fires on wheel input regardless of held
     -- modifiers, so a modifier + wheel binding would otherwise rotate and

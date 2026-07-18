@@ -1,6 +1,6 @@
 {
   "name": "select-and-pave",
-  "version": "0.0.1",
+  "version": "0.5.0",
   "title": "Select & Pave",
   "author": "sakuro",
   "description": "Hold a paving item (stone brick, concrete, landfill, etc.), drag-select an area, and place matching tile ghosts for construction.",

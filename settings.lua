@@ -1,12 +1,18 @@
 local paving = require("lib.paving")
 
--- Settings stage can't inspect prototypes yet (data stage hasn't run), but
--- doesn't need to here -- checking the mod's presence via `mods` is enough
--- to pick a sensible default without discovering place_as_tile items
--- generically (that discovery only happens in data-final-fixes.lua).
-local protected_items_default = mods["space-age"]
-  and table.concat(paving.default_space_age_protected_items, ",")
-  or ""
+-- Always the Space Age Gleba soil names, whether or not that MOD is active:
+-- a mod-settings value only gets (re-)computed from this default the first
+-- time the setting is ever resolved for a given player/save, so branching on
+-- `mods["space-age"]` here would only pick the right default for someone who
+-- happens to first touch this setting after installing Space Age. Anyone who
+-- installs it later would be stuck with the earlier, blank default forever
+-- (mod-settings.dat and existing saves both keep whatever value was already
+-- recorded, ignoring this prototype's default_value from then on). Keeping
+-- the value unconditional means it's already correct if/when Space Age shows
+-- up. Without Space Age these names simply don't resolve to anything --
+-- see get_protected_tile_names in control.lua, which recognizes exactly this
+-- list and stays quiet about it instead of warning.
+local protected_items_default = table.concat(paving.default_space_age_protected_items, ",")
 
 data:extend({
   {

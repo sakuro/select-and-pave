@@ -9,6 +9,20 @@ local paving = {}
 
 paving.tool_prefix = "select-and-pave-tool-"
 
+-- Space Age's four player-placeable Gleba soil items (artificial/overgrowth
+-- x yumako/jellynut); natural-*-soil variants are map-gen-only tiles with no
+-- corresponding item. Shared between settings.lua (picks these as the
+-- protected-items setting's default when space-age is active) and
+-- control.lua (which stays quiet about a default that some other MOD, e.g.
+-- one that deletes Gleba, has legitimately made unresolvable -- as opposed
+-- to an actual typo in a user-entered name).
+paving.default_space_age_protected_items = {
+  "artificial-yumako-soil",
+  "overgrowth-yumako-soil",
+  "artificial-jellynut-soil",
+  "overgrowth-jellynut-soil",
+}
+
 local function tile_condition_names_of(tile_condition, name_of)
   if not (tile_condition and #tile_condition > 0) then
     return nil
@@ -67,6 +81,21 @@ end
 --- mentions it and so can't be assumed valid there.
 function paving.condition_references(normalized, layer)
   return normalized.condition_layers ~= nil and normalized.condition_layers[layer] == true
+end
+
+--- Parses a free-form settings string (comma- and/or newline-separated item
+--- names, extra whitespace tolerated) into a set of trimmed, non-empty names.
+--- @param str string
+--- @return table<string, boolean>
+function paving.parse_item_list(str)
+  local names = {}
+  for name in str:gmatch("[^,\n]+") do
+    name = name:match("^%s*(.-)%s*$")
+    if name ~= "" then
+      names[name] = true
+    end
+  end
+  return names
 end
 
 --- Whether a normalized place_as_tile allows its result tile to be placed

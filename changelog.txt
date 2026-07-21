@@ -1,5 +1,7 @@
 ---------------------------------------------------------------------------------------------------
 Version: Unreleased
+  Features:
+    - Add a setting to protect chosen paving items' tiles from being overwritten by a different item
 ---------------------------------------------------------------------------------------------------
 Version: 0.5.0
 Date: 2026-07-18

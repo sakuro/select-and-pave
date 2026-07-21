@@ -87,9 +87,13 @@ local function get_paving_items()
 end
 
 --- Resolves the protected-items setting's configured item names into a set
---- of their result tile names. An unresolvable name (typo, or an item from a
---- MOD that isn't currently loaded) is reported rather than silently
---- dropped, since a typo here would otherwise defeat protection invisibly.
+--- of their result tile names. An unresolvable name (typo, an item that
+--- exists but doesn't place a tile, or one from a MOD that isn't currently
+--- loaded) is reported rather than silently dropped, since a typo here would
+--- otherwise defeat protection invisibly. The two failure modes are told
+--- apart (no such item at all vs. an item that just isn't a paving item)
+--- since they point the player at different fixes -- a misspelled name vs.
+--- the wrong item entirely.
 local function resolve_protected_tile_names()
   local names = {}
   for item_name in pairs(paving.parse_item_list(settings.global[protected_items_setting].value)) do
@@ -97,7 +101,11 @@ local function resolve_protected_tile_names()
     if entry then
       names[entry.result_name] = true
     elseif not default_protected_items[item_name] then
-      game.print({"select-and-pave-messages.unknown-protected-item", item_name})
+      if prototypes.item[item_name] then
+        game.print({"select-and-pave-messages.non-paving-protected-item", item_name})
+      else
+        game.print({"select-and-pave-messages.unknown-protected-item", item_name})
+      end
     end
   end
   return names

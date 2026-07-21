@@ -103,6 +103,14 @@ check("references its own layer", paving.condition_references(invert_item, "wate
 check("does not reference other layers", paving.condition_references(concrete, "ground_tile"), false)
 check("no condition references nothing", paving.condition_references(unconditional, "water_tile"), false)
 
+-- parse_name_list
+local comma_and_newline = paving.parse_name_list("foo, bar,\nbaz")
+check("parse_name_list splits on commas", comma_and_newline.foo, true)
+check("parse_name_list splits on newlines", comma_and_newline.baz, true)
+check("parse_name_list trims surrounding whitespace", comma_and_newline.bar, true)
+check("parse_name_list of empty string yields nothing", next(paving.parse_name_list("")), nil)
+check("parse_name_list ignores blank entries", next(paving.parse_name_list(" , ,\n")), nil)
+
 if failures > 0 then
   io.write(("%d failure(s)\n"):format(failures))
   os.exit(1)

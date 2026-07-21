@@ -5,6 +5,7 @@ local custom_input_name = "select-and-pave-activate-input"
 local next_item_input_name = "select-and-pave-next-item"
 local previous_item_input_name = "select-and-pave-previous-item"
 local after_selection_setting = "select-and-pave-after-selection"
+local protected_tiles_setting = "select-and-pave-protected-tiles"
 
 -- Prototypes are immutable after load, so these are computed once per game
 -- load rather than kept in `storage`.
@@ -12,6 +13,23 @@ local paving_items
 local item_recipes
 -- item name -> whether it can serve as an underlay (see can_serve_as_underlay)
 local underlay_capability = {}
+
+-- Set of tile names that must never be overwritten by paving with a
+-- different item (see resolve_protected_tile_names). Unlike the caches
+-- above, this also depends on a runtime-global setting that can change
+-- mid-session without a game reload, so it's invalidated (and eagerly
+-- rebuilt) by on_runtime_mod_setting_changed rather than only computed once.
+local protected_tile_names
+
+-- Tile names from the protected-tiles setting's own default (see
+-- paving.default_space_age_protected_tiles) that go unresolved when some
+-- other MOD (e.g. one that deletes Gleba) has legitimately removed them --
+-- as opposed to a typo in a name the player actually typed themselves. Only
+-- suppresses the warning for these; anything else unresolvable still prints.
+local default_protected_tiles = {}
+for _, name in pairs(paving.default_space_age_protected_tiles) do
+  default_protected_tiles[name] = true
+end
 
 local function tile_prototype_name(tile_prototype)
   return tile_prototype.name
@@ -66,6 +84,31 @@ local function get_paving_items()
     end
   end
   return paving_items
+end
+
+--- Resolves the protected-tiles setting's configured tile names into a set,
+--- validating each against `prototypes.tile` directly rather than against
+--- place_as_tile items: some protectable ground (e.g. Gleba's natural
+--- soil variants) is map-gen-only and no item ever produces it, so there's
+--- no item name to resolve it through in the first place. An unresolvable
+--- name (typo, or a tile from a MOD that isn't currently loaded) is
+--- reported rather than silently dropped, since a typo here would otherwise
+--- defeat protection invisibly.
+local function resolve_protected_tile_names()
+  local names = {}
+  for tile_name in pairs(paving.parse_name_list(settings.global[protected_tiles_setting].value)) do
+    if prototypes.tile[tile_name] then
+      names[tile_name] = true
+    elseif not default_protected_tiles[tile_name] then
+      game.print({"select-and-pave-messages.unknown-protected-tile", tile_name})
+    end
+  end
+  return names
+end
+
+local function get_protected_tile_names()
+  protected_tile_names = protected_tile_names or resolve_protected_tile_names()
+  return protected_tile_names
 end
 
 --- Whether `force` can currently obtain `entry`'s item: some recipe
@@ -532,6 +575,14 @@ local function place_ghost_once(context, tile, tile_name)
 end
 
 local function process_tile(context, tile)
+  -- A "don't touch" exclusion above the normal placement/underlay logic
+  -- below, not a placement-validity check: a protected tile is skipped
+  -- entirely (no ghost, no underlay) regardless of whether some other item
+  -- could otherwise validly go there.
+  if get_protected_tile_names()[tile.name] then
+    return
+  end
+
   local entry = context.entry
   if context.on_platform and not usable_on_platform(entry) then
     return
@@ -712,6 +763,15 @@ script.on_event(defines.events.on_player_cursor_stack_changed, function(event)
     -- the held item here would hijack a gesture that universally means
     -- "put it away".
     storage.pending[event.player_index] = nil
+  end
+end)
+
+-- Eagerly rebuilds (rather than just clearing) so an unresolvable name is
+-- reported immediately when the setting is edited, instead of silently
+-- waiting for the next paving action to trigger get_protected_tile_names.
+script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
+  if event.setting == protected_tiles_setting then
+    protected_tile_names = resolve_protected_tile_names()
   end
 end)
 

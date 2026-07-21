@@ -5,7 +5,7 @@ local custom_input_name = "select-and-pave-activate-input"
 local next_item_input_name = "select-and-pave-next-item"
 local previous_item_input_name = "select-and-pave-previous-item"
 local after_selection_setting = "select-and-pave-after-selection"
-local protected_items_setting = "select-and-pave-protected-items"
+local protected_tiles_setting = "select-and-pave-protected-tiles"
 
 -- Prototypes are immutable after load, so these are computed once per game
 -- load rather than kept in `storage`.
@@ -21,14 +21,14 @@ local underlay_capability = {}
 -- rebuilt) by on_runtime_mod_setting_changed rather than only computed once.
 local protected_tile_names
 
--- Item names from the protected-items setting's own default (see
--- paving.default_space_age_protected_items) that go unresolved when some
+-- Tile names from the protected-tiles setting's own default (see
+-- paving.default_space_age_protected_tiles) that go unresolved when some
 -- other MOD (e.g. one that deletes Gleba) has legitimately removed them --
 -- as opposed to a typo in a name the player actually typed themselves. Only
 -- suppresses the warning for these; anything else unresolvable still prints.
-local default_protected_items = {}
-for _, name in pairs(paving.default_space_age_protected_items) do
-  default_protected_items[name] = true
+local default_protected_tiles = {}
+for _, name in pairs(paving.default_space_age_protected_tiles) do
+  default_protected_tiles[name] = true
 end
 
 local function tile_prototype_name(tile_prototype)
@@ -86,26 +86,21 @@ local function get_paving_items()
   return paving_items
 end
 
---- Resolves the protected-items setting's configured item names into a set
---- of their result tile names. An unresolvable name (typo, an item that
---- exists but doesn't place a tile, or one from a MOD that isn't currently
---- loaded) is reported rather than silently dropped, since a typo here would
---- otherwise defeat protection invisibly. The two failure modes are told
---- apart (no such item at all vs. an item that just isn't a paving item)
---- since they point the player at different fixes -- a misspelled name vs.
---- the wrong item entirely.
+--- Resolves the protected-tiles setting's configured tile names into a set,
+--- validating each against `prototypes.tile` directly rather than against
+--- place_as_tile items: some protectable ground (e.g. Gleba's natural
+--- soil variants) is map-gen-only and no item ever produces it, so there's
+--- no item name to resolve it through in the first place. An unresolvable
+--- name (typo, or a tile from a MOD that isn't currently loaded) is
+--- reported rather than silently dropped, since a typo here would otherwise
+--- defeat protection invisibly.
 local function resolve_protected_tile_names()
   local names = {}
-  for item_name in pairs(paving.parse_item_list(settings.global[protected_items_setting].value)) do
-    local entry = get_paving_items()[item_name]
-    if entry then
-      names[entry.result_name] = true
-    elseif not default_protected_items[item_name] then
-      if prototypes.item[item_name] then
-        game.print({"select-and-pave-messages.non-paving-protected-item", item_name})
-      else
-        game.print({"select-and-pave-messages.unknown-protected-item", item_name})
-      end
+  for tile_name in pairs(paving.parse_name_list(settings.global[protected_tiles_setting].value)) do
+    if prototypes.tile[tile_name] then
+      names[tile_name] = true
+    elseif not default_protected_tiles[tile_name] then
+      game.print({"select-and-pave-messages.unknown-protected-tile", tile_name})
     end
   end
   return names
@@ -775,7 +770,7 @@ end)
 -- reported immediately when the setting is edited, instead of silently
 -- waiting for the next paving action to trigger get_protected_tile_names.
 script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
-  if event.setting == protected_items_setting then
+  if event.setting == protected_tiles_setting then
     protected_tile_names = resolve_protected_tile_names()
   end
 end)

@@ -13,7 +13,7 @@ Drag-select an area to pave it with the item in your hand.
 
 After each drag the selection tool stays in your hand so you can pave several areas in a row; press Q (clear cursor) to put it away. The per-player setting "Behavior after selection" can instead return the paving item, or leave the hand empty, after every selection.
 
-The map-wide setting "Protected paving items" lists item names whose resulting tiles are never overwritten by paving with a different item, so a broad selection can't accidentally destroy ground you've deliberately placed elsewhere. It defaults to Space Age's four Gleba soil items regardless of whether Space Age is installed; without it, those names simply don't match anything and have no effect.
+The map-wide setting "Protected tiles" lists tile names that are never overwritten by paving with a different item, so a broad selection can't accidentally destroy ground you want to keep. It defaults to Space Age's six Gleba soil tiles regardless of whether Space Age is installed; without it, those names simply don't match anything and have no effect.
 
 While selecting, you can switch to the next/previous paving item with the "Pave Selection: Next/Previous Item" controls. These have no default key, so bind them yourself under Settings > Controls (e.g. Ctrl + mouse wheel, which vanilla leaves unused — Shift + mouse wheel collides with blueprint book and clipboard cycling).
 

@@ -1,6 +1,6 @@
 local paving = require("lib.paving")
 
--- Always the Space Age Gleba soil names, whether or not that MOD is active:
+-- Always the Space Age Gleba soil tiles, whether or not that MOD is active:
 -- a mod-settings value only gets (re-)computed from this default the first
 -- time the setting is ever resolved for a given player/save, so branching on
 -- `mods["space-age"]` here would only pick the right default for someone who
@@ -12,7 +12,7 @@ local paving = require("lib.paving")
 -- up. Without Space Age these names simply don't resolve to anything --
 -- see get_protected_tile_names in control.lua, which recognizes exactly this
 -- list and stays quiet about it instead of warning.
-local protected_items_default = table.concat(paving.default_space_age_protected_items, ",")
+local protected_tiles_default = table.concat(paving.default_space_age_protected_tiles, ",")
 
 data:extend({
   {
@@ -24,9 +24,9 @@ data:extend({
   },
   {
     type = "string-setting",
-    name = "select-and-pave-protected-items",
+    name = "select-and-pave-protected-tiles",
     setting_type = "runtime-global",
-    default_value = protected_items_default,
+    default_value = protected_tiles_default,
     allow_blank = true,
   },
 })

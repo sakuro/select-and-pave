@@ -484,7 +484,7 @@ local function activate(player)
     -- get_paving_items(). nil means every fallback, including "auto-pick
     -- anything usable," came up empty: no paving item exists to try at all.
     local message_key = held_name
-      and "select-and-pave-messages.no-paving-item"
+      and "select-and-pave-messages.not-a-paving-item"
       or "select-and-pave-messages.no-paving-item-available"
     player.create_local_flying_text({text = {message_key}, position = player.position})
     return

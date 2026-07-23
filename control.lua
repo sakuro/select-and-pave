@@ -384,6 +384,77 @@ local function last_used_item(player)
   return last_used, nil, true
 end
 
+--- Item names from get_paving_items(), sorted for deterministic rotation.
+local function sorted_paving_item_names()
+  local names = {}
+  for name in pairs(get_paving_items()) do
+    names[#names + 1] = name
+  end
+  table.sort(names)
+  return names
+end
+
+--- Set of item names present in the player's main inventory, built from a
+--- single get_contents() pass -- for possession checks that don't need the
+--- LuaItemStack itself (unlike find_inventory_stack's per-slot scan).
+local function inventory_item_names(player)
+  local names = {}
+  local inventory = player.get_main_inventory()
+  if inventory then
+    for _, item in pairs(inventory.get_contents()) do
+      names[item.name] = true
+    end
+  end
+  return names
+end
+
+--- Item names `player` may rotate to: either they already have a real stack
+--- of it, or `force` can currently obtain it. An item with neither (no
+--- stack in hand and unresearched) is excluded entirely, matching
+--- activate()'s refusal to open on an unresearched cursor_ghost preview.
+local function rotation_candidates(player)
+  local owned = inventory_item_names(player)
+  local candidates = {}
+  for _, name in pairs(sorted_paving_item_names()) do
+    local entry = get_paving_items()[name]
+    if owned[name] or is_available(entry, player.force) then
+      candidates[#candidates + 1] = name
+    end
+  end
+  return candidates
+end
+
+--- What activating with empty hands should fall back to when there's no
+--- last-used memory either: a paving item `player` may use per
+--- rotation_candidates() (owned, or currently research-available), preferring
+--- one they own a real stack of over one that's merely available (so this
+--- equips something real when possible, instead of a ghost preview).
+--- Alphabetically first among ties, same as rotation_candidates() itself --
+--- in a fresh vanilla game, stone brick is the only currently-available
+--- paving item (concrete/landfill/etc. all require research), so this lands
+--- there without ever naming it. Returns the same name, quality, from_ghost
+--- triple as get_held_item_name, or nil if there's no cursor to equip into
+--- or no candidate exists at all.
+local function default_paving_item(player)
+  if not player.cursor_stack then
+    return nil
+  end
+
+  local candidates = rotation_candidates(player)
+  if #candidates == 0 then
+    return nil
+  end
+
+  for _, name in pairs(candidates) do
+    local stack = find_inventory_stack(player, name)
+    if stack then
+      return name, stack.quality.name, false
+    end
+  end
+
+  return candidates[1], nil, true
+end
+
 local function activate(player)
   -- Already holding our selection tool (common with keep-tool on): there is
   -- nothing to swap, so just re-announce what it paves with -- without this
@@ -401,13 +472,21 @@ local function activate(player)
   if not held_name then
     held_name, held_quality, from_ghost = last_used_item(player)
   end
+  if not held_name then
+    held_name, held_quality, from_ghost = default_paving_item(player)
+  end
 
   local entry = held_name and get_paving_items()[held_name]
   if not entry then
-    player.create_local_flying_text({
-      text = {"select-and-pave-messages.no-paving-item"},
-      position = player.position,
-    })
+    -- held_name is truthy here only if get_held_item_name found a real,
+    -- non-paving item in the cursor -- last_used_item and
+    -- default_paving_item only ever return names that already resolve via
+    -- get_paving_items(). nil means every fallback, including "auto-pick
+    -- anything usable," came up empty: no paving item exists to try at all.
+    local message_key = held_name
+      and "select-and-pave-messages.no-paving-item"
+      or "select-and-pave-messages.no-paving-item-available"
+    player.create_local_flying_text({text = {message_key}, position = player.position})
     return
   end
 
@@ -469,46 +548,6 @@ local function collect_existing_ghosts(surface, area, force)
     existing[ghost_key(ghost.position, ghost.ghost_name)] = true
   end
   return existing
-end
-
---- Item names from get_paving_items(), sorted for deterministic rotation.
-local function sorted_paving_item_names()
-  local names = {}
-  for name in pairs(get_paving_items()) do
-    names[#names + 1] = name
-  end
-  table.sort(names)
-  return names
-end
-
---- Set of item names present in the player's main inventory, built from a
---- single get_contents() pass -- for possession checks that don't need the
---- LuaItemStack itself (unlike find_inventory_stack's per-slot scan).
-local function inventory_item_names(player)
-  local names = {}
-  local inventory = player.get_main_inventory()
-  if inventory then
-    for _, item in pairs(inventory.get_contents()) do
-      names[item.name] = true
-    end
-  end
-  return names
-end
-
---- Item names `player` may rotate to: either they already have a real stack
---- of it, or `force` can currently obtain it. An item with neither (no
---- stack in hand and unresearched) is excluded entirely, matching
---- activate()'s refusal to open on an unresearched cursor_ghost preview.
-local function rotation_candidates(player)
-  local owned = inventory_item_names(player)
-  local candidates = {}
-  for _, name in pairs(sorted_paving_item_names()) do
-    local entry = get_paving_items()[name]
-    if owned[name] or is_available(entry, player.force) then
-      candidates[#candidates + 1] = name
-    end
-  end
-  return candidates
 end
 
 --- Cycles the active selection tool to the next/previous paving item

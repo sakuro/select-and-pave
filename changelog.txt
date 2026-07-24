@@ -1,5 +1,6 @@
 ---------------------------------------------------------------------------------------------------
-Version: Unreleased
+Version: 0.6.0
+Date: 2026-07-24
   Features:
     - Add a setting to protect chosen tiles from being overwritten by paving with a different item
     - Fall back to a usable paving item when activating with empty hands and no remembered item

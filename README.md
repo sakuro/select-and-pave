@@ -6,7 +6,7 @@ Drag-select an area to pave it with the item in your hand.
 
 ## Usage
 
-1. Hold a paving item — any item with a tile result, such as stone brick, concrete, refined concrete, landfill, or Space Age's foundation. If your hands are empty, the last item you paved with is remembered and re-equipped automatically.
+1. Hold a paving item — any item with a tile result, such as stone brick, concrete, refined concrete, landfill, or Space Age's foundation. If your hands are empty, the last item you paved with is remembered and re-equipped automatically; with no such memory (first use, or that item no longer applies), some other paving item you can currently use is picked automatically instead.
 2. Press the "Pave Selection" shortcut (default key: Alt + W), or click its button in the shortcut bar.
 3. Drag a box over the area to pave. Tile ghosts are placed for construction robots (or manual building) to complete.
 4. Hold Shift while dragging (Factorio calls this "alt-select") to also place an underlay (e.g. landfill) where the held item can't go directly, such as water.

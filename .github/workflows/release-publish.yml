@@ -5,8 +5,6 @@ name: Release Publish
 
 env:
   MOD_NAME: ${{ github.event.repository.name }}
-  # Lua is only needed for `mise run test`; skip installing it in release workflows
-  MISE_DISABLE_TOOLS: lua
 
 on:
   pull_request:
@@ -33,7 +31,7 @@ jobs:
         echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
     - name: Checkout release tag
-      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       with:
         ref: ${{ steps.version.outputs.tag }}
         fetch-depth: 0
@@ -49,11 +47,8 @@ jobs:
         fi
         echo "✅ Version consistency verified: $FILE_VERSION"
 
-    - name: Set git user
-      uses: git-actions/set-user@49fa9362373dabe0bfcbdb5e8d4da08045ebf6f8 # v1
-
     - name: Setup mise
-      uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
 
     - name: Build and upload MOD to Factorio MOD portal
       env:
@@ -65,26 +60,8 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: mise run release:github
 
-    - name: Checkout main branch
-      run: git checkout main
-
-    - name: Add Unreleased section to changelog.txt
-      run: |
-        { printf -- '-%.0s' {1..99}; printf '\nVersion: Unreleased\n'; cat changelog.txt; } > changelog.txt.tmp
-        mv changelog.txt.tmp changelog.txt
-
-    - name: Verify changelog.txt format
-      run: factorix mod changelog check
-
-    - name: Commit and push changelog update
-      run: |
-        git add changelog.txt
-        git commit -m ":memo: Start Unreleased section for next release"
-        git push origin main
-
     - name: Post-release summary
       run: |
         echo "🎉 Release ${{ steps.version.outputs.tag }} published successfully!"
         echo "- MOD built from tagged commit and published to Factorio MOD portal"
         echo "- GitHub release created with changelog and assets"
-        echo "- Unreleased section added to changelog.txt on main"

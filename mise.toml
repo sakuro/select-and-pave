@@ -1,40 +1,31 @@
 [tools]
-gh = "2.96.0"
+gh = "2.100.0"
+gitleaks = "8.30"
 jq = "1.8.2"
-"github:sakuro/factorix" = "0.21.0"
-lua = "5.2.4"
+hk = "1.57.0"
+actionlint = "1.7.12"
+shellcheck = "0.11.0"
+lua = "5.2" # Factorio's Lua version; never bump (see .github/renovate.json)
+"github:sakuro/factorix" = "0.23.0"
+
+[hooks]
+# hk install: skipped in CI (GitHub Actions sets CI); hk falls back to script shims on Git < 2.54.
+# busted: needed by `mise run test`, including in CI. Version bumped by Renovate (see .github/renovate.json).
+postinstall = [
+  'test -n "$CI" || hk install',
+  'luarocks install --local busted 2.3.0',
+]
 
 [settings]
 minimum_release_age = "3d"
 
-[tasks.build]
-description = "Build MOD archive"
-run = "scripts/build.sh"
-
-[tasks.install]
-description = "Install MOD locally"
-depends = ["build"]
-run = "scripts/install.sh"
-
-[tasks.clean]
-description = "Remove build artifacts"
-run = "scripts/clean.sh"
-
-[tasks.test]
-description = "Run unit tests"
-run = "lua tests/paving_test.lua"
-
-[tasks."release:portal"]
-description = "Publish MOD to Factorio MOD Portal"
-depends = ["build"]
-run = "scripts/release-portal.sh"
-
-[tasks."release:github"]
-description = "Create GitHub Release"
-depends = ["build"]
-run = "scripts/release-github.sh"
+[task_config]
+includes = ["tasks"]
 
 [env]
+# Make `hk install` generate hooks that run via `mise x`, so mise-managed tools
+# (gitleaks, hk) resolve without mise shell activation — e.g. from GUI git clients.
+HK_MISE = "1"
 MOD_LICENSE = "default_mit"
 MOD_CATEGORY = "utilities"
 MOD_TAGS = "environment"

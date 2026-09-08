@@ -30,5 +30,3 @@
 /spec/ export-ignore
 /tasks/ export-ignore
 /doc/ export-ignore
-# transitional: legacy plain-Lua tests, removed with the spec/ migration (#9)
-/tests/ export-ignore

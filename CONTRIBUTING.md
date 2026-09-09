@@ -42,3 +42,55 @@ Version: Unreleased
 
 Add later entries to that same section. Do not create a section for the next
 version number — the release workflow does the version bump.
+
+## Scaffold drift
+
+This repository is generated from
+[`factorio-mod-scaffold`](https://github.com/sakuro/factorio-mod-scaffold). (In
+`factorio-mod-scaffold` itself this workflow is a deliberate no-op — there is no
+`.scaffold-sync.json`.) A weekly workflow
+(`.github/workflows/scaffold-drift.yml`) three-way merges the
+shared-infrastructure files listed in `.scaffold-sync.paths` against the current
+scaffold and opens or updates one PR on branch `chore/scaffold-drift` when the
+scaffold has moved ahead. `.scaffold-sync.json` records the scaffold commit this
+repo was last synced to.
+
+**Reviewing a `chore/scaffold-drift` PR**
+
+- The PR is opened with `GITHUB_TOKEN`, so CI does not start on its own. Add the
+  `run-ci` label to start it; CI removes that label as it runs, so after a later
+  push from the workflow you re-run CI by adding `run-ci` again. (CI runs
+  for real on every `labeled` event — there is no label-name filter, since a
+  skipped required check counts as passing — so adding any label also re-runs
+  it.)
+- Require the test lane (if this repo has one) to pass.
+- Check that MOD-specific content survived: `mise.toml` `[env] MOD_*`, any doc
+  sections this repo added, real `spec/*_spec.lua`.
+- The PR body links the scaffold compare range and notes each conflict the skill
+  resolved.
+- `changelog.txt` is intentionally untouched — tracked paths are `export-ignore`d
+  development infrastructure.
+
+**When it runs**
+
+Only with an `ANTHROPIC_API_KEY` repo secret set; blank means the workflow's gate
+step no-ops. A fork does not inherit the secret, so the workflow does nothing on
+a fork and no API cost is incurred.
+
+The first scheduled run can fail the action's `checkHumanActor` check because
+`github.actor` on a `schedule` event is not a `User`. If that happens, set the
+`claude-code-action` `allowed_bots` input in `scaffold-drift.yml`.
+
+**Test lane**
+
+A repo with no `.busted` file has dropped the test lane. The sync never re-adds
+the test files (`ci.yml`, `.busted`, `tasks/test`, `spec/helper.lua`) or the
+Lua-testing fragments in `mise.toml` / `.github/renovate.json`.
+
+**If a sync looks wrong**
+
+Close the PR. The next weekly run force-pushes `chore/scaffold-drift` again and
+opens a fresh PR from the same baseline (the merge is recomputed each run). To
+move the baseline, edit `.scaffold-sync.json`. The canonical description of this
+mechanism is this section plus `.github/workflows/scaffold-drift.yml`,
+`.scaffold-sync.paths`, and `.claude/skills/resolve-scaffold-drift/`.

@@ -11,6 +11,9 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # No `workflows` scope: GITHUB_TOKEN cannot be granted it, so a drift PR cannot
+  # carry `.github/workflows/**` changes. The skill holds those back into the PR
+  # body (see CONTRIBUTING.md "Held-back workflow files").
 
 # One drift run at a time: overlapping runs would both force-push
 # chore/scaffold-drift. Do not cancel a run in progress — it may be mid-PR.
@@ -79,8 +82,10 @@ jobs:
           prompt: >
             Invoke the resolve-scaffold-drift skill. Open or update a PR on
             branch chore/scaffold-drift. Do nothing if there is no drift.
-          # Agent mode grants no tools by default; the skill drives git / gh /
-          # merge.sh, so it must be allowed explicitly. Bash is unscoped here
-          # (first-party skill, ephemeral runner, scoped GITHUB_TOKEN); scope it
-          # to Bash(git:*),Bash(gh:*),… later if desired.
-          claude_args: "--permission-mode acceptEdits --allowedTools 'Bash,Read,Write,Edit,Glob,Grep,TodoWrite,Skill'"
+          # --model: a mechanical three-way merge + PR does not need the default
+          # (Opus); Sonnet is a few times cheaper for a weekly job across MODs.
+          # --allowedTools: agent mode grants no tools by default and the skill
+          # drives git / gh / merge.sh. Bash is unscoped here (first-party skill,
+          # ephemeral runner, scoped GITHUB_TOKEN); scope it to Bash(git:*),
+          # Bash(gh:*),… later if desired.
+          claude_args: "--model claude-sonnet-5 --permission-mode acceptEdits --allowedTools 'Bash,Read,Write,Edit,Glob,Grep,TodoWrite,Skill'"

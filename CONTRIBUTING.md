@@ -68,14 +68,16 @@ repo was last synced to.
   sections this repo added, real `spec/*_spec.lua`.
 - The PR body links the scaffold compare range and notes each conflict the skill
   resolved.
-- **Held-back workflow files.** A drift PR cannot push changes under
-  `.github/workflows/` (`GITHUB_TOKEN` has no `workflows` permission). If the PR
-  body has a "Held back: workflow files" section, the baseline is *not* bumped
-  and the job keeps reporting drift. If the held-back diff is only `uses:`
-  SHA/tag pin bumps, leave it — this repo's Renovate converges those on its own.
-  If it is structural, apply the diff by hand (a direct commit or a small PR),
-  then set `.scaffold-sync.json` `commit` to the head SHA in the compare link and
-  `synced_at` to the current UTC time.
+- **Held-back paths.** An automated (CI) drift PR cannot carry changes under
+  `.github/workflows/**` (`GITHUB_TOKEN` has no `workflows` permission) or under
+  `.claude/**` (the CI agent's sandbox blocks writes there). The PR body's
+  "Held back" section has a diff for each; the baseline is *not* bumped and the
+  job keeps reporting drift until they are applied. A workflow diff that is only
+  `uses:` SHA/tag pin bumps can be left for Renovate; everything else — and every
+  `.claude/**` change — is applied by hand (a direct commit or a small PR). Then
+  set `.scaffold-sync.json` `commit` to the head SHA in the compare link and
+  `synced_at` to the current UTC time. (Running `/resolve-scaffold-drift` locally
+  in Claude Code has neither limit and applies everything.)
 - `changelog.txt` is intentionally untouched — tracked paths are `export-ignore`d
   development infrastructure.
 

@@ -2,10 +2,17 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches: [main]
 
 jobs:
+  # `labeled` is a trigger so a drift PR (opened with GITHUB_TOKEN, which does not
+  # start workflows on its own) can be kicked off by adding the `run-ci` label.
+  # There is no job-level `if:` filter on the label name on purpose: a skipped
+  # job reports as passing, so filtering here could let a label add turn a red
+  # required check green. Every `labeled` event therefore runs CI for real —
+  # adding any label re-runs it, which is harmless.
   test:
     runs-on: ubuntu-latest
 
@@ -21,3 +28,37 @@ jobs:
 
     - name: Run tests
       run: mise run test
+
+  # Regression coverage for the scaffold-drift merge script. The runner has
+  # bash 5, so merge.sh's bash-4 features actually run here. Not a required
+  # status check.
+  merge-script:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+    - name: Run merge.sh fixture test
+      run: bash .claude/skills/resolve-scaffold-drift/merge_test.sh
+
+  # When a `run-ci` label triggered this run, drop it again so re-running CI on a
+  # drift PR is a one-step "add `run-ci`" (a GITHUB_TOKEN force-push from the
+  # drift workflow does not fire `synchronize`). No `needs:` — the label goes
+  # regardless of the test outcome, so a failed run is retried the same way.
+  # Removing the label via GITHUB_TOKEN does not start another run (`unlabeled`
+  # is not a trigger).
+  drop-run-ci:
+    if: github.event.action == 'labeled' && github.event.label.name == 'run-ci'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+    - name: Remove the run-ci label
+      continue-on-error: true  # best-effort; a failure here must not block the PR
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+      run: gh pr edit "$PR" --repo "$REPO" --remove-label run-ci

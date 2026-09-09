@@ -2,5 +2,7 @@
 !/.claude/skills/
 /.claude/skills/*
 !/.claude/skills/resolve-scaffold-drift/
+/.env
+/.env.*
 /dist/
 /tmp/

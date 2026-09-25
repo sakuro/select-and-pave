@@ -100,7 +100,7 @@ local function resolve_protected_tile_names()
     if prototypes.tile[tile_name] then
       names[tile_name] = true
     elseif not default_protected_tiles[tile_name] then
-      game.print({"select-and-pave-messages.unknown-protected-tile", tile_name})
+      game.print({ "select-and-pave-messages.unknown-protected-tile", tile_name })
     end
   end
   return names
@@ -205,8 +205,10 @@ local function underlay_candidate(context, tile, name, candidate_entry)
   -- is_already_paved keeps the engine check from treating a frozen variant
   -- of the candidate's own result as coverable terrain (thawing it is not
   -- underlaying).
-  if is_already_paved(tile, candidate_entry)
-    or not can_place_tile_ghost(context.surface, tile.position, candidate_entry.result_name, context.force) then
+  if
+    is_already_paved(tile, candidate_entry)
+    or not can_place_tile_ghost(context.surface, tile.position, candidate_entry.result_name, context.force)
+  then
     return nil
   end
 
@@ -219,7 +221,7 @@ local function underlay_candidate(context, tile, name, candidate_entry)
     return nil
   end
 
-  return {name = name, entry = candidate_entry}
+  return { name = name, entry = candidate_entry }
 end
 
 --- Finds a generic "underlay" item (e.g. landfill) whose place_as_tile is
@@ -267,9 +269,13 @@ local function compute_underlay_capability(name, entry)
     if other_name ~= name and is_placeable_on_tile_prototype(other_entry, result_tile) then
       for _, tile_prototype in pairs(prototypes.tile) do
         local mask = tile_prototype.collision_mask
-        if mask and mask.layers and mask.layers[water_layer]
+        if
+          mask
+          and mask.layers
+          and mask.layers[water_layer]
           and is_placeable_on_tile_prototype(entry, tile_prototype)
-          and not is_placeable_on_tile_prototype(other_entry, tile_prototype) then
+          and not is_placeable_on_tile_prototype(other_entry, tile_prototype)
+        then
           return true
         end
       end
@@ -297,11 +303,10 @@ local function announce_paving_item(player, name)
   if not entry then
     return
   end
-  local message_key = can_serve_as_underlay(name, entry)
-    and "select-and-pave-messages.now-paving-underlay"
+  local message_key = can_serve_as_underlay(name, entry) and "select-and-pave-messages.now-paving-underlay"
     or "select-and-pave-messages.now-paving"
   player.create_local_flying_text({
-    text = {message_key, "[item=" .. name .. "]", prototypes.item[name].localised_name},
+    text = { message_key, "[item=" .. name .. "]", prototypes.item[name].localised_name },
     position = player.position,
   })
 end
@@ -318,7 +323,7 @@ local ANNOUNCE_DELAY_TICKS = 20
 --- due ANNOUNCE_DELAY_TICKS from now.
 local function queue_paving_announcement(player, name)
   storage.pending_announce = storage.pending_announce or {}
-  storage.pending_announce[player.index] = {name = name, at_tick = game.tick + ANNOUNCE_DELAY_TICKS}
+  storage.pending_announce[player.index] = { name = name, at_tick = game.tick + ANNOUNCE_DELAY_TICKS }
 end
 
 --- Extracts the held item's name from a `select-and-pave-tool-<name>`
@@ -461,8 +466,7 @@ local function activate(player)
   -- the tool itself would be read as the held item and, not being a paving
   -- item, trip the "hold a paving item" message.
   local cursor_stack = player.cursor_stack
-  local tool_item_name = cursor_stack and cursor_stack.valid_for_read
-    and held_item_name_from_tool(cursor_stack.name)
+  local tool_item_name = cursor_stack and cursor_stack.valid_for_read and held_item_name_from_tool(cursor_stack.name)
   if tool_item_name then
     queue_paving_announcement(player, tool_item_name)
     return
@@ -483,10 +487,9 @@ local function activate(player)
     -- default_paving_item only ever return names that already resolve via
     -- get_paving_items(). nil means every fallback, including "auto-pick
     -- anything usable," came up empty: no paving item exists to try at all.
-    local message_key = held_name
-      and "select-and-pave-messages.not-a-paving-item"
+    local message_key = held_name and "select-and-pave-messages.not-a-paving-item"
       or "select-and-pave-messages.no-paving-item-available"
-    player.create_local_flying_text({text = {message_key}, position = player.position})
+    player.create_local_flying_text({ text = { message_key }, position = player.position })
     return
   end
 
@@ -495,7 +498,7 @@ local function activate(player)
   -- can point at an item the force can't actually produce yet.
   if from_ghost and not is_available(entry, player.force) then
     player.create_local_flying_text({
-      text = {"select-and-pave-messages.not-yet-researched"},
+      text = { "select-and-pave-messages.not-yet-researched" },
       position = player.position,
     })
     return
@@ -509,8 +512,8 @@ local function activate(player)
     return
   end
 
-  storage.pending[player.index] = {from_ghost = from_ghost, quality = held_quality}
-  player.cursor_stack.set_stack({name = paving.tool_prefix .. held_name, count = 1})
+  storage.pending[player.index] = { from_ghost = from_ghost, quality = held_quality }
+  player.cursor_stack.set_stack({ name = paving.tool_prefix .. held_name, count = 1 })
   queue_paving_announcement(player, held_name)
 end
 
@@ -522,7 +525,7 @@ local function restore_cursor(player, held_name, held_quality, from_ghost)
   player.cursor_stack.clear()
 
   if from_ghost then
-    player.cursor_ghost = held_quality and {name = held_name, quality = held_quality} or {name = held_name}
+    player.cursor_ghost = held_quality and { name = held_name, quality = held_quality } or { name = held_name }
     return
   end
 
@@ -543,7 +546,7 @@ end
 --- own placement.
 local function collect_existing_ghosts(surface, area, force)
   local existing = {}
-  local ghosts = surface.find_entities_filtered({area = area, type = "tile-ghost", force = force})
+  local ghosts = surface.find_entities_filtered({ area = area, type = "tile-ghost", force = force })
   for _, ghost in pairs(ghosts) do
     existing[ghost_key(ghost.position, ghost.ghost_name)] = true
   end
@@ -586,8 +589,8 @@ local function rotate_item(player, direction)
   end
 
   local next_stack = find_inventory_stack(player, next_name)
-  storage.pending[player.index] = {from_ghost = not next_stack}
-  player.cursor_stack.set_stack({name = paving.tool_prefix .. next_name, count = 1})
+  storage.pending[player.index] = { from_ghost = not next_stack }
+  player.cursor_stack.set_stack({ name = paving.tool_prefix .. next_name, count = 1 })
   queue_paving_announcement(player, next_name)
 end
 
@@ -794,7 +797,8 @@ script.on_event(defines.events.on_player_cursor_stack_changed, function(event)
   end
   local player = game.get_player(event.player_index)
   local cursor_stack = player.cursor_stack
-  local holding_tool = cursor_stack and cursor_stack.valid_for_read
+  local holding_tool = cursor_stack
+    and cursor_stack.valid_for_read
     and held_item_name_from_tool(cursor_stack.name) ~= nil
   if not holding_tool then
     -- Clearing the tool keeps vanilla Q semantics: the hand stays empty. The

@@ -29,6 +29,12 @@ jobs:
     - name: Run tests
       run: mise run test
 
+    - name: Check Lua formatting
+      run: mise run format-check
+
+    - name: Lint Lua code
+      run: mise run lint
+
   # Regression coverage for the scaffold-drift merge script. The runner has
   # bash 5, so merge.sh's bash-4 features actually run here. Not a required
   # status check.

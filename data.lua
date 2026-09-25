@@ -48,7 +48,7 @@ data:extend({
     name = shortcut_name,
     action = "lua",
     associated_control_input = custom_input_name,
-    localised_description = {"shortcut-description." .. shortcut_name},
+    localised_description = { "shortcut-description." .. shortcut_name },
     icon = icon,
     icon_size = icon_size,
     small_icon = small_icon,

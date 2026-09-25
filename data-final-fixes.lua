@@ -5,9 +5,9 @@ local paving = require("lib.paving")
 
 local function icon_fields(item)
   if item.icons then
-    return {icons = item.icons}
+    return { icons = item.icons }
   end
-  return {icon = item.icon, icon_size = item.icon_size}
+  return { icon = item.icon, icon_size = item.icon_size }
 end
 
 -- Data-stage tile references are already plain name strings.
@@ -48,8 +48,7 @@ local function define_selection_tool(candidate, candidates, tiles)
     if paving.matches(normalized, tile) then
       tile_filters[#tile_filters + 1] = tile_name
       alt_tile_filters[#alt_tile_filters + 1] = tile_name
-    elseif tile_name ~= normalized.result_name
-      and tile.thawed_name ~= normalized.result_name then
+    elseif tile_name ~= normalized.result_name and tile.thawed_name ~= normalized.result_name then
       for _, underlay_normalized in pairs(underlay_normals) do
         if paving.matches(underlay_normalized, tile) then
           alt_tile_filters[#alt_tile_filters + 1] = tile_name
@@ -64,14 +63,14 @@ local function define_selection_tool(candidate, candidates, tiles)
   -- tile in the drag box, filtered ones display nothing), so there is no
   -- counter to color. The badge can't be made to show a paveable-tile count.
   local select = {
-    mode = {"any-tile"},
+    mode = { "any-tile" },
     cursor_box_type = "copy",
-    border_color = {r = 0.9, g = 0.7, b = 0.2},
+    border_color = { r = 0.9, g = 0.7, b = 0.2 },
   }
   local alt_select = {
-    mode = {"any-tile"},
+    mode = { "any-tile" },
     cursor_box_type = "copy",
-    border_color = {r = 0.3, g = 0.6, b = 0.9},
+    border_color = { r = 0.3, g = 0.6, b = 0.9 },
   }
   -- An empty whitelist is treated as "no filter" by the engine, which would
   -- silently make the native counter report every tile in the drag box
@@ -90,8 +89,8 @@ local function define_selection_tool(candidate, candidates, tiles)
   local selection_tool = {
     type = "selection-tool",
     name = paving.tool_prefix .. name,
-    localised_name = item.localised_name or {"item-name." .. name},
-    flags = {"only-in-cursor", "not-stackable"},
+    localised_name = item.localised_name or { "item-name." .. name },
+    flags = { "only-in-cursor", "not-stackable" },
     hidden = true,
     stack_size = 1,
     select = select,
@@ -101,7 +100,7 @@ local function define_selection_tool(candidate, candidates, tiles)
     selection_tool[key] = value
   end
 
-  data:extend({selection_tool})
+  data:extend({ selection_tool })
 end
 
 -- Collects every place_as_tile item across all of data.raw (not just

@@ -6,7 +6,7 @@ end
 
 --- Tile descriptor literal, shaped like paving.normalize_tile's result.
 local function tile(name, layers, thawed_name)
-  return {name = name, layers = layers, thawed_name = thawed_name}
+  return { name = name, layers = layers, thawed_name = thawed_name }
 end
 
 -- Fixtures mirror vanilla definitions (see base/prototypes/item.lua): concrete
@@ -15,25 +15,25 @@ end
 -- mask matches.
 local concrete = paving.normalize({
   result = "concrete",
-  condition = {layers = {water_tile = true}},
+  condition = { layers = { water_tile = true } },
 }, identity)
 
 local landfill = paving.normalize({
   result = "landfill",
-  condition = {layers = {ground_tile = true}},
-  tile_condition = {"water", "deepwater"},
+  condition = { layers = { ground_tile = true } },
+  tile_condition = { "water", "deepwater" },
 }, identity)
 
 local invert_item = paving.normalize({
   result = "invert-result",
-  condition = {layers = {water_tile = true}},
+  condition = { layers = { water_tile = true } },
   invert = true,
 }, identity)
 
-local unconditional = paving.normalize({result = "plain-result"}, identity)
+local unconditional = paving.normalize({ result = "plain-result" }, identity)
 
-local ground = {ground_tile = true}
-local water = {water_tile = true, item = true, player = true}
+local ground = { ground_tile = true }
+local water = { water_tile = true, item = true, player = true }
 
 describe("paving.normalize", function()
   it("keeps the result name", function()
@@ -53,19 +53,23 @@ describe("paving.normalize", function()
   end)
 
   it("treats an empty tile_condition as none", function()
-    local normalized = paving.normalize({result = "r", tile_condition = {}}, identity)
+    local normalized = paving.normalize({ result = "r", tile_condition = {} }, identity)
     assert.is_nil(normalized.tile_condition_names)
   end)
 
   it("extracts names via name_of", function()
-    local normalized = paving.normalize({result = {name = "obj"}}, function(ref) return ref.name end)
+    local normalized = paving.normalize({ result = { name = "obj" } }, function(ref)
+      return ref.name
+    end)
     assert.are.equal("obj", normalized.result_name)
   end)
 end)
 
 describe("paving.normalize_tile", function()
   local data_tile = paving.normalize_tile(
-    {name = "frozen-concrete", collision_mask = {layers = ground}, thawed_variant = "concrete"}, identity)
+    { name = "frozen-concrete", collision_mask = { layers = ground }, thawed_variant = "concrete" },
+    identity
+  )
 
   it("keeps the tile name", function()
     assert.are.equal("frozen-concrete", data_tile.name)
@@ -81,17 +85,20 @@ describe("paving.normalize_tile", function()
 
   it("extracts the thawed name from a runtime object via name_of", function()
     local runtime_tile = paving.normalize_tile(
-      {name = "frozen-concrete", collision_mask = {layers = ground}, thawed_variant = {name = "concrete"}},
-      function(ref) return ref.name end)
+      { name = "frozen-concrete", collision_mask = { layers = ground }, thawed_variant = { name = "concrete" } },
+      function(ref)
+        return ref.name
+      end
+    )
     assert.are.equal("concrete", runtime_tile.thawed_name)
   end)
 
   it("leaves layers nil without a collision mask", function()
-    assert.is_nil(paving.normalize_tile({name = "void"}, identity).layers)
+    assert.is_nil(paving.normalize_tile({ name = "void" }, identity).layers)
   end)
 
   it("leaves thawed_name nil without a thawed variant", function()
-    assert.is_nil(paving.normalize_tile({name = "void"}, identity).thawed_name)
+    assert.is_nil(paving.normalize_tile({ name = "void" }, identity).thawed_name)
   end)
 end)
 
@@ -116,11 +123,11 @@ describe("paving.matches", function()
     end)
 
     it("rejects an unlisted tile", function()
-      assert.is_false(paving.matches(landfill, tile("oil-ocean-shallow", {water_tile = true})))
+      assert.is_false(paving.matches(landfill, tile("oil-ocean-shallow", { water_tile = true })))
     end)
 
     it("still vetoes a listed tile via the condition layers", function()
-      assert.is_false(paving.matches(landfill, tile("water", {ground_tile = true})))
+      assert.is_false(paving.matches(landfill, tile("water", { ground_tile = true })))
     end)
   end)
 

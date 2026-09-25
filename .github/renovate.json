@@ -47,6 +47,16 @@
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "lunarmodules/busted",
       "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/mise\\.toml$/"],
+      "matchStrings": [
+        "luarocks install --local luacheck (?<currentValue>[0-9.]+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "lunarmodules/luacheck",
+      "extractVersionTemplate": "^v(?<version>.+)$"
     }
   ]
 }

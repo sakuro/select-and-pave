@@ -9,7 +9,7 @@ read_globals = {
   "log",
 }
 
-local data_stage_globals = { "data", "settings" }
+local data_stage_globals = { "settings" }
 local control_stage_globals = {
   "game",
   "script",
@@ -22,6 +22,13 @@ local control_stage_globals = {
   "rendering",
   "settings",
 }
+
+-- `data` is the data stage's own prototype table and the stage exists to write
+-- into it. `data:extend{...}` is a call and passes either way, but a GUI style
+-- is a field write (`data.raw["gui-style"].default.foo = {...}`), which as a
+-- read-only global trips "indirectly setting read-only field of global data".
+-- `settings` stays read-only: the data stage reads startup values from it.
+local data_stage_write_globals = { "data" }
 
 -- `storage` is the one control-stage global mods are meant to write into (it
 -- is the mod's own persisted-state table, initialized empty by Factorio) —
@@ -41,13 +48,13 @@ local function concat(...)
   return result
 end
 
-files["settings*.lua"] = { read_globals = data_stage_globals }
-files["data*.lua"] = { read_globals = data_stage_globals }
-files["prototypes/**/*.lua"] = { read_globals = data_stage_globals }
+files["settings*.lua"] = { read_globals = data_stage_globals, globals = data_stage_write_globals }
+files["data*.lua"] = { read_globals = data_stage_globals, globals = data_stage_write_globals }
+files["prototypes/**/*.lua"] = { read_globals = data_stage_globals, globals = data_stage_write_globals }
 files["control.lua"] = { read_globals = control_stage_globals, globals = control_stage_write_globals }
 files["lib/**/*.lua"] = {
   read_globals = concat(data_stage_globals, control_stage_globals),
-  globals = control_stage_write_globals,
+  globals = concat(data_stage_write_globals, control_stage_write_globals),
 }
 
 -- spec/**/*_spec.lua needs no override here: luacheck's own default

@@ -4,6 +4,10 @@
 -- helpers "shared across stages", not just control-stage logic.
 std = "lua52"
 
+-- luacheck does not read .gitignore; without this, `luacheck .` also checks build
+-- output under dist/ and scratch files under tmp/.
+exclude_files = { "dist/", "tmp/" }
+
 read_globals = {
   "mods",
   "log",
@@ -57,6 +61,10 @@ files["lib/**/*.lua"] = {
   globals = concat(data_stage_write_globals, control_stage_write_globals),
 }
 
--- spec/**/*_spec.lua needs no override here: luacheck's own default
--- (files["**/spec/**/*_spec.lua"].std = "+busted") already matches this
--- project's spec file naming and supplies the busted DSL globals.
+-- A spec exercises lib/ code and fakes whatever runtime that code touches, so
+-- it gets the same globals lib/ does. luacheck's own default adds the busted
+-- DSL on top of this for **/spec/**/*_spec.lua.
+files["spec/**/*.lua"] = {
+  read_globals = concat(data_stage_globals, control_stage_globals),
+  globals = concat(data_stage_write_globals, control_stage_write_globals),
+}

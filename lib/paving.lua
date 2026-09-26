@@ -38,8 +38,10 @@ local function tile_condition_names_of(tile_condition, name_of)
   return names
 end
 
---- @param place_as_tile table data-stage `PlaceAsTile` or runtime `PlaceAsTileResult`
---- @param name_of function extracts a plain tile-name string from a tile reference
+--- Flattens an item's place_as_tile rule into the plain descriptor `matches` takes.
+---@param place_as_tile table  data-stage `PlaceAsTile` or runtime `PlaceAsTileResult`
+---@param name_of fun(tile_ref: any): string  extracts a plain tile name from a tile reference
+---@return table  result_name, condition_layers, invert, tile_condition_names
 function paving.normalize(place_as_tile, name_of)
   return {
     result_name = name_of(place_as_tile.result),
@@ -53,8 +55,9 @@ end
 --- into the plain descriptor `matches` takes: the tile's name, its
 --- collision-mask layers (nil when the prototype has no mask), and the name
 --- of the tile it thaws into if frozen (nil otherwise).
---- @param tile_prototype table data-stage tile prototype or runtime LuaTilePrototype
---- @param name_of function extracts a plain tile-name string from a tile reference
+---@param tile_prototype table|LuaTilePrototype  data-stage tile prototype or runtime LuaTilePrototype
+---@param name_of fun(tile_ref: any): string  extracts a plain tile name from a tile reference
+---@return table  name, layers, thawed_name
 function paving.normalize_tile(tile_prototype, name_of)
   local mask = tile_prototype.collision_mask
   local thawed = tile_prototype.thawed_variant
@@ -77,19 +80,23 @@ local function layers_intersect(condition_layers, collision_mask_layers)
   return false
 end
 
---- Whether a normalized place_as_tile's collision-mask condition references
---- `layer` at all (regardless of `invert`). Used to recognize items that are
---- specifically designed around a special-purpose layer (e.g. "empty_space"
---- for space platforms) as opposed to items whose rule simply never
---- mentions it and so can't be assumed valid there.
+--- True when a normalized place_as_tile's collision-mask condition names layer,
+--- regardless of `invert`.
+---
+--- Used to recognize items that are specifically designed around a
+--- special-purpose layer (e.g. "empty_space" for space platforms) as opposed to
+--- items whose rule simply never mentions it and so can't be assumed valid there.
+---@param normalized table  from `normalize`
+---@param layer string
+---@return boolean
 function paving.condition_references(normalized, layer)
   return normalized.condition_layers ~= nil and normalized.condition_layers[layer] == true
 end
 
 --- Parses a free-form settings string (comma- and/or newline-separated
 --- names, extra whitespace tolerated) into a set of trimmed, non-empty names.
---- @param str string
---- @return table<string, boolean>
+---@param str string
+---@return table<string, boolean>
 function paving.parse_name_list(str)
   local names = {}
   for name in str:gmatch("[^,\n]+") do
@@ -101,12 +108,12 @@ function paving.parse_name_list(str)
   return names
 end
 
---- Whether a normalized place_as_tile allows its result tile to be placed
---- over `tile`, a descriptor from `normalize_tile`. A frozen tile whose
---- `thawed_name` is the item's own result (e.g. Aquilo's frozen-concrete
---- thaws into concrete) counts as already paved too, since re-placing it
---- under drag-select just spends the item on a thaw that has no heat
---- source to hold, and will refreeze right back.
+--- True when a normalized place_as_tile allows its result tile to be placed over tile.
+---
+--- A frozen tile whose `thawed_name` is the item's own result (e.g. Aquilo's
+--- frozen-concrete thaws into concrete) counts as already paved too, since
+--- re-placing it under drag-select just spends the item on a thaw that has no
+--- heat source to hold, and will refreeze right back.
 ---
 --- Known limitation: the engine evaluates `condition` over a square of
 --- `place_as_tile.condition_size` tiles around the position; this
@@ -116,6 +123,9 @@ end
 --- engine instead (control.lua's can_place_tile_ghost); this function
 --- remains for data-stage filters and prototype-vs-prototype checks,
 --- where no position exists to ask the engine about.
+---@param normalized table  from `normalize`
+---@param tile table  from `normalize_tile`
+---@return boolean
 function paving.matches(normalized, tile)
   if tile.name == normalized.result_name or tile.thawed_name == normalized.result_name then
     return false -- already paved

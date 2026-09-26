@@ -29,4 +29,5 @@
 .*/ export-ignore
 /spec/ export-ignore
 /tasks/ export-ignore
+/tools/ export-ignore
 /doc/ export-ignore

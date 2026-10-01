@@ -8,10 +8,10 @@ local paving = require("lib.paving")
 -- installs it later would be stuck with the earlier, blank default forever
 -- (mod-settings.dat and existing saves both keep whatever value was already
 -- recorded, ignoring this prototype's default_value from then on). Keeping
--- the value unconditional means it's already correct if/when Space Age shows
--- up. Without Space Age these names simply don't resolve to anything --
--- see get_protected_tile_names in control.lua, which recognizes exactly this
--- list and stays quiet about it instead of warning.
+-- the value unconditional means it's already correct if Space Age is added
+-- later. Without Space Age these names resolve to nothing, and
+-- get_protected_tile_names in control.lua recognizes this list and does not
+-- warn about it.
 local protected_tiles_default = table.concat(paving.default_space_age_protected_tiles, ",")
 
 data:extend({

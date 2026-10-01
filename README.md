@@ -6,16 +6,16 @@ Drag-select an area to pave it with the item in your hand.
 
 ## Usage
 
-1. Hold a paving item — any item with a tile result, such as stone brick, concrete, refined concrete, landfill, or Space Age's foundation. If your hands are empty, the last item you paved with is remembered and re-equipped automatically; with no such memory (first use, or that item no longer applies), some other paving item you can currently use is picked automatically instead.
+1. Hold a paving item: any item with a tile result, such as stone brick, concrete, refined concrete, landfill, or Space Age's foundation. If your hands are empty, the last item you paved with is re-equipped. On first use, or when that item no longer applies, another paving item you can currently use is picked instead.
 2. Press the "Pave Selection" shortcut (default key: Alt + W), or click its button in the shortcut bar.
 3. Drag a box over the area to pave. Tile ghosts are placed for construction robots (or manual building) to complete.
 4. Hold Shift while dragging (Factorio calls this "alt-select") to also place an underlay (e.g. landfill) where the held item can't go directly, such as water.
 
 After each drag the selection tool stays in your hand so you can pave several areas in a row; press Q (clear cursor) to put it away. The per-player setting "Behavior after selection" can instead return the paving item, or leave the hand empty, after every selection.
 
-The map-wide setting "Protected tiles" lists tile names that are never overwritten by paving with a different item, so a broad selection can't accidentally destroy ground you want to keep. It defaults to Space Age's six Gleba soil tiles regardless of whether Space Age is installed; without it, those names simply don't match anything and have no effect.
+The map-wide setting "Protected tiles" lists tile names that are never overwritten by paving with a different item, so a broad selection can't accidentally destroy ground you want to keep. It defaults to Space Age's six Gleba soil tiles regardless of whether Space Age is installed; without it, those names match nothing.
 
-While selecting, you can switch to the next/previous paving item with the "Pave Selection: Next/Previous Item" controls. These have no default key, so bind them yourself under Settings > Controls (e.g. Ctrl + mouse wheel, which vanilla leaves unused — Shift + mouse wheel collides with blueprint book and clipboard cycling).
+While selecting, you can switch to the next/previous paving item with the "Pave Selection: Next/Previous Item" controls. These have no default key, so bind them yourself under Settings > Controls (e.g. Ctrl + mouse wheel, which vanilla leaves unused; Shift + mouse wheel collides with blueprint book and clipboard cycling).
 
 ## Related mods
 

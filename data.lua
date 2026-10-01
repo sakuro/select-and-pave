@@ -21,8 +21,8 @@ data:extend({
     -- Unassigned by default. A mod-set mouse-wheel default does work in 2.0
     -- (lowercase mouse-wheel-* spelling), but shipping one would, combined
     -- with consuming below, take that modifier + wheel zoom away from every
-    -- player at all times — consuming is a static prototype attribute and
-    -- cannot be limited to while the tool is held. Left unbound so only
+    -- player at all times, because consuming is a static prototype attribute
+    -- and cannot be limited to while the tool is held. Left unbound so only
     -- players who opt into a binding (e.g. Ctrl + mouse wheel) give it up.
     --
     -- consuming: vanilla zoom fires on wheel input regardless of held

@@ -10,13 +10,12 @@ local paving = {}
 paving.tool_prefix = "select-and-pave-tool-"
 
 -- Space Age's six Gleba soil tiles (natural/artificial/overgrowth x
--- yumako/jellynut). The natural variant is map-gen-only -- no item places
--- it -- which is exactly why the protected-tiles setting names tiles
--- directly rather than the items that produce them. Shared between
--- settings.lua (picks these as the setting's default) and control.lua
--- (which stays quiet when a default goes unresolved, e.g. without Space Age
--- or after a MOD that deletes Gleba, as opposed to an actual typo in a
--- user-entered name).
+-- yumako/jellynut). No item places the natural variant, which is map-gen-only,
+-- so the protected-tiles setting names tiles directly instead of the items
+-- that produce them. Shared between settings.lua (picks these as the
+-- setting's default) and control.lua (which stays quiet when a default goes
+-- unresolved, e.g. without Space Age or after a MOD that deletes Gleba, but
+-- still warns about a typo in a user-entered name).
 paving.default_space_age_protected_tiles = {
   "natural-yumako-soil",
   "artificial-yumako-soil",
@@ -83,9 +82,9 @@ end
 --- True when a normalized place_as_tile's collision-mask condition names layer,
 --- regardless of `invert`.
 ---
---- Used to recognize items that are specifically designed around a
---- special-purpose layer (e.g. "empty_space" for space platforms) as opposed to
---- items whose rule simply never mentions it and so can't be assumed valid there.
+--- Used to recognize items designed around a special-purpose layer (e.g.
+--- "empty_space" for space platforms). An item whose rule never mentions the
+--- layer can't be assumed valid there.
 ---@param normalized table  from `normalize`
 ---@param layer string
 ---@return boolean
@@ -112,8 +111,8 @@ end
 ---
 --- A frozen tile whose `thawed_name` is the item's own result (e.g. Aquilo's
 --- frozen-concrete thaws into concrete) counts as already paved too, since
---- re-placing it under drag-select just spends the item on a thaw that has no
---- heat source to hold, and will refreeze right back.
+--- re-placing it under drag-select spends the item on a thaw that no heat
+--- source holds, and the tile refreezes.
 ---
 --- Known limitation: the engine evaluates `condition` over a square of
 --- `place_as_tile.condition_size` tiles around the position; this

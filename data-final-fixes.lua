@@ -34,8 +34,8 @@ local function define_selection_tool(candidate, candidates, tiles)
   end
 
   -- Precomputes which existing tiles this item could ever pave, directly
-  -- (tile_filters -- the normal-select whitelist) or with an underlay in
-  -- between (alt_tile_filters -- a superset of it), so each mode's native
+  -- (tile_filters, the normal-select whitelist) or with an underlay in
+  -- between (alt_tile_filters, a superset of it), so each mode's native
   -- counter only counts tiles that are actual targets for that mode.
   -- Research state and platform restrictions are runtime concerns that
   -- control.lua re-checks, so the alt counter still overcounts tiles whose
@@ -59,7 +59,7 @@ local function define_selection_tool(candidate, candidates, tiles)
   end
 
   -- No count_button_color: the engine shows no tile-count badge for modes
-  -- with tile_filters set (observed in 2.0 -- unfiltered modes count every
+  -- with tile_filters set (observed in 2.0: unfiltered modes count every
   -- tile in the drag box, filtered ones display nothing), so there is no
   -- counter to color. The badge can't be made to show a paveable-tile count.
   local select = {
@@ -72,11 +72,11 @@ local function define_selection_tool(candidate, candidates, tiles)
     cursor_box_type = "copy",
     border_color = { r = 0.3, g = 0.6, b = 0.9 },
   }
-  -- An empty whitelist is treated as "no filter" by the engine, which would
-  -- silently make the native counter report every tile in the drag box
-  -- instead of zero; leaving tile_filters/tile_filter_mode unset in that
-  -- case is equally harmless (control.lua re-checks placeability at
-  -- runtime regardless) but doesn't claim a precision we don't have.
+  -- The engine treats an empty whitelist as "no filter", which would make the
+  -- native counter report every tile in the drag box instead of zero. Leaving
+  -- tile_filters/tile_filter_mode unset in that case has the same effect
+  -- (control.lua re-checks placeability at runtime anyway) without claiming
+  -- a precision we don't have.
   if #tile_filters > 0 then
     select.tile_filters = tile_filters
     select.tile_filter_mode = "whitelist"
@@ -103,17 +103,17 @@ local function define_selection_tool(candidate, candidates, tiles)
   data:extend({ selection_tool })
 end
 
--- Collects every place_as_tile item across all of data.raw (not just
--- data.raw.item), since `place_as_tile` is a base ItemPrototype field usable
+-- Collects every place_as_tile item across all of data.raw instead of only
+-- data.raw.item, since `place_as_tile` is a base ItemPrototype field usable
 -- by any item subtype (tool, capsule, item-with-tags, ...), and control.lua's
 -- runtime `prototypes.item` scan (see get_paving_items in control.lua) covers
 -- all of them too. Restricting this to data.raw.item would let control.lua
 -- recognize a paving item that has no matching tool prototype here, crashing
 -- `player.cursor_stack.set_stack` in activate().
 --
--- Collected into a plain list first, rather than calling define_selection_tool
--- (which calls data:extend, mutating data.raw) while still iterating over
--- data.raw itself, since mutating a table mid-`pairs` is undefined behavior.
+-- Collected into a plain list first because define_selection_tool calls
+-- data:extend, which mutates data.raw, and mutating a table mid-`pairs` is
+-- undefined behavior.
 local paving_candidates = {}
 for _, group in pairs(data.raw) do
   for name, prototype in pairs(group) do
@@ -127,7 +127,7 @@ for _, group in pairs(data.raw) do
   end
 end
 
--- Flattened once here rather than per item inside define_selection_tool;
+-- Flattened once here instead of per item inside define_selection_tool;
 -- data:extend there only adds selection-tools, so data.raw.tile is stable
 -- across the loop.
 local tiles = {}

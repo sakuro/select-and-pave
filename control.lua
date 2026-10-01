@@ -17,15 +17,15 @@ local underlay_capability = {}
 -- Set of tile names that must never be overwritten by paving with a
 -- different item (see resolve_protected_tile_names). Unlike the caches
 -- above, this also depends on a runtime-global setting that can change
--- mid-session without a game reload, so it's invalidated (and eagerly
--- rebuilt) by on_runtime_mod_setting_changed rather than only computed once.
+-- mid-session without a game reload, so on_runtime_mod_setting_changed
+-- invalidates and eagerly rebuilds it.
 local protected_tile_names
 
 -- Tile names from the protected-tiles setting's own default (see
--- paving.default_space_age_protected_tiles) that go unresolved when some
--- other MOD (e.g. one that deletes Gleba) has legitimately removed them --
--- as opposed to a typo in a name the player actually typed themselves. Only
--- suppresses the warning for these; anything else unresolvable still prints.
+-- paving.default_space_age_protected_tiles) that go unresolved because some
+-- other MOD (e.g. one that deletes Gleba) has legitimately removed them. The
+-- warning is suppressed only for these; an unresolvable name the player typed
+-- still prints.
 local default_protected_tiles = {}
 for _, name in pairs(paving.default_space_age_protected_tiles) do
   default_protected_tiles[name] = true
@@ -87,13 +87,12 @@ local function get_paving_items()
 end
 
 --- Resolves the protected-tiles setting's configured tile names into a set,
---- validating each against `prototypes.tile` directly rather than against
+--- validating each against `prototypes.tile` directly instead of against
 --- place_as_tile items: some protectable ground (e.g. Gleba's natural
---- soil variants) is map-gen-only and no item ever produces it, so there's
---- no item name to resolve it through in the first place. An unresolvable
+--- soil variants) is map-gen-only and no item produces it. An unresolvable
 --- name (typo, or a tile from a MOD that isn't currently loaded) is
---- reported rather than silently dropped, since a typo here would otherwise
---- defeat protection invisibly.
+--- reported, since a silently dropped typo would defeat protection
+--- invisibly.
 local function resolve_protected_tile_names()
   local names = {}
   for tile_name in pairs(paving.parse_name_list(settings.global[protected_tiles_setting].value)) do
@@ -114,7 +113,7 @@ end
 --- Whether `force` can currently obtain `entry`'s item: some recipe
 --- producing it is enabled for the force (whether via research or enabled by
 --- script). Items no recipe produces are assumed obtainable some other way
---- (mining, scripts) rather than locked out forever.
+--- (mining, scripts).
 local function is_available(entry, force)
   if not entry.recipes then
     return true
@@ -135,17 +134,16 @@ end
 -- search's "would the target fit on the underlay's result tile?" question
 -- is positionless and answered by paving.matches, which cannot see the
 -- platform rule. Without the guard it stacks concrete on a foundation
--- underlay -- a placement the game refuses to make manually (even as a
--- ghost from remote view) yet robots happily revive, so the forbidden
--- state would be reachable only through this MOD.
+-- underlay. The game refuses that placement manually (even as a ghost from
+-- remote view) but robots still revive it, so this MOD would be the only way
+-- to reach the forbidden state.
 local platform_layer = "empty_space"
 
 -- The layer water and lava tiles carry (see base's tile-collision-masks.lua),
--- and the one plain paving items are universally blocked by. It's what
--- specifically makes landfill/foundation "underlays": they reclaim terrain
--- nothing else can touch. Other collision layers (e.g. Aquilo's "meltable",
--- which blocks stone brick but not concrete) are gameplay-balance distinctions
--- between plain paving items, not underlay-worthy terrain access.
+-- and the one plain paving items are universally blocked by. Landfill and
+-- foundation count as "underlays" because they reclaim terrain on this layer.
+-- Other collision layers (e.g. Aquilo's "meltable", which blocks stone brick
+-- but not concrete) only balance plain paving items against each other.
 local water_layer = "water_tile"
 
 local function usable_on_platform(entry)
@@ -153,7 +151,7 @@ local function usable_on_platform(entry)
 end
 
 --- Asks the engine whether a `tile_name` ghost could be manually placed at
---- `position` -- the authoritative build check, honoring every placement
+--- `position`. This is the authoritative build check, honoring every placement
 --- rule lib/paving.lua's prototype-level `matches` only approximates
 --- (condition_size neighborhoods, foundation rules on space platforms, ...).
 --- Only answerable where an actual position exists; prototype-vs-prototype
@@ -173,8 +171,8 @@ end
 --- The engine check can't express "nothing to do": it approves re-placing a
 --- tile over its own frozen variant (a thaw no heat source would hold), and
 --- its refusal over the identical tile would read as "blocked, needs an
---- underlay" -- paving concrete over concrete would sneak a hazard concrete
---- "underlay" in, since concrete is placeable on top of it.
+--- underlay", so paving concrete over concrete would sneak in a hazard
+--- concrete "underlay", since concrete is placeable on top of it.
 local function is_already_paved(tile, entry)
   local thawed = tile.prototype.thawed_variant
   return tile.name == entry.result_name or (thawed and thawed.name == entry.result_name) or false
@@ -227,7 +225,7 @@ end
 --- Finds a generic "underlay" item (e.g. landfill) whose place_as_tile is
 --- valid on `tile`, and whose result tile the selection's target entry
 --- would in turn be placeable on. Only considers items the selecting force
---- can currently obtain -- unresearched items are treated as if they didn't
+--- can currently obtain; unresearched items are treated as if they didn't
 --- exist. Prefers the most specific candidate (narrowest `tile_condition`)
 --- so a cheap, purpose-built item like landfill is chosen over a broad,
 --- general-purpose one like foundation; ties break alphabetically for
@@ -250,16 +248,14 @@ local function choose_underlay(context, tile)
 end
 
 --- Whether `entry` can reclaim some water/lava tile (see `water_layer`) for
---- another paving item that couldn't go there directly -- e.g. landfill's
---- result tile accepts concrete, and unlike concrete, landfill also covers
---- water. Restricted to that one layer rather than any collision-mask
---- difference: plain paving items can differ from each other too (e.g.
---- Aquilo's meltable ice blocks stone brick but not concrete), and that's a
---- gameplay-balance distinction between paving items, not the "opens up
---- otherwise off-limits terrain" trait that makes something an underlay.
---- Independent of any specific tile, force research state, or platform -- a
---- tile-agnostic classification for display purposes, not the precise
---- per-tile check `choose_underlay` performs when actually placing ghosts.
+--- another paving item that couldn't go there directly. For example,
+--- landfill's result tile accepts concrete, and unlike concrete, landfill also
+--- covers water. Only that one layer counts: plain paving items also differ in
+--- other collision layers (e.g. Aquilo's meltable ice blocks stone brick but
+--- not concrete), but that only balances them against each other and opens up
+--- no off-limits terrain. The classification ignores specific tiles, force
+--- research state and platforms and is for display only; `choose_underlay`
+--- does the precise per-tile check when placing ghosts.
 local function compute_underlay_capability(name, entry)
   local result_tile = prototypes.tile[entry.result_name]
   if not result_tile then
@@ -312,11 +308,10 @@ local function announce_paving_item(player, name)
 end
 
 -- Scrolling to rotate items can fire rotate_item() several times a second,
--- and each call's flying text is independent -- the engine has no way to
--- replace or cancel one already on screen, so back-to-back calls stack up
--- illegibly. Queuing the announcement and re-timing it on every call instead
--- of showing it immediately means only the item scrolling settles on, after
--- ANNOUNCE_DELAY_TICKS of no further calls, actually gets announced.
+-- and the engine cannot replace or cancel a flying text already on screen, so
+-- back-to-back calls stack up illegibly. The announcement is queued and
+-- re-timed on every call, so only the item scrolling settles on is announced,
+-- after ANNOUNCE_DELAY_TICKS of no further calls.
 local ANNOUNCE_DELAY_TICKS = 20
 
 --- Replaces any not-yet-shown announcement for `player` with one for `name`,
@@ -337,8 +332,8 @@ end
 
 --- Reads the item the player is holding, either for real (cursor_stack) or
 --- as a preview (cursor_ghost). Returns nil if neither is set. Quality is
---- tracked only so the exact same stack/preview can be restored afterwards
---- -- it plays no part in paving logic itself, which is quality-blind.
+--- tracked only so the exact same stack/preview can be restored afterwards;
+--- paving logic itself ignores quality.
 local function get_held_item_name(player)
   local cursor_stack = player.cursor_stack
   if cursor_stack and cursor_stack.valid_for_read then
@@ -400,7 +395,7 @@ local function sorted_paving_item_names()
 end
 
 --- Set of item names present in the player's main inventory, built from a
---- single get_contents() pass -- for possession checks that don't need the
+--- single get_contents() pass, for possession checks that don't need the
 --- LuaItemStack itself (unlike find_inventory_stack's per-slot scan).
 local function inventory_item_names(player)
   local names = {}
@@ -432,12 +427,11 @@ end
 --- What activating with empty hands should fall back to when there's no
 --- last-used memory either: a paving item `player` may use per
 --- rotation_candidates() (owned, or currently research-available), preferring
---- one they own a real stack of over one that's merely available (so this
---- equips something real when possible, instead of a ghost preview).
---- Alphabetically first among ties, same as rotation_candidates() itself --
---- in a fresh vanilla game, stone brick is the only currently-available
---- paving item (concrete/landfill/etc. all require research), so this lands
---- there without ever naming it. Returns the same name, quality, from_ghost
+--- one they own a real stack of so a real item is equipped instead of a ghost
+--- preview when possible. Ties go to the alphabetically first, as in
+--- rotation_candidates() itself. In a fresh vanilla game stone brick is the
+--- only available paving item (concrete, landfill, etc. need research), so
+--- this picks it without naming it. Returns the same name, quality, from_ghost
 --- triple as get_held_item_name, or nil if there's no cursor to equip into
 --- or no candidate exists at all.
 local function default_paving_item(player)
@@ -462,9 +456,9 @@ end
 
 local function activate(player)
   -- Already holding our selection tool (common with keep-tool on): there is
-  -- nothing to swap, so just re-announce what it paves with -- without this
-  -- the tool itself would be read as the held item and, not being a paving
-  -- item, trip the "hold a paving item" message.
+  -- nothing to swap, so just re-announce what it paves with. Otherwise the
+  -- tool itself would be read as the held item and, not being a paving item,
+  -- trip the "hold a paving item" message.
   local cursor_stack = player.cursor_stack
   local tool_item_name = cursor_stack and cursor_stack.valid_for_read and held_item_name_from_tool(cursor_stack.name)
   if tool_item_name then
@@ -483,7 +477,7 @@ local function activate(player)
   local entry = held_name and get_paving_items()[held_name]
   if not entry then
     -- held_name is truthy here only if get_held_item_name found a real,
-    -- non-paving item in the cursor -- last_used_item and
+    -- non-paving item in the cursor, because last_used_item and
     -- default_paving_item only ever return names that already resolve via
     -- get_paving_items(). nil means every fallback, including "auto-pick
     -- anything usable," came up empty: no paving item exists to try at all.
@@ -507,8 +501,8 @@ local function activate(player)
   if not from_ghost and not player.clear_cursor() then
     -- clear_cursor() normally always empties the cursor (dropping on the
     -- ground if the main inventory is full), so a false return means
-    -- something more fundamental prevented it; don't swap cursors in that
-    -- case rather than risk the held stack.
+    -- something more fundamental prevented it. Don't swap cursors then, so
+    -- the held stack is not put at risk.
     return
   end
 
@@ -556,7 +550,7 @@ end
 --- Cycles the active selection tool to the next/previous paving item
 --- (`direction` +1 or -1), while the tool is active. Whether the new item
 --- restores as a real stack or a cursor_ghost preview is decided fresh each
---- time, based on whether the player currently has a stack of it -- not on
+--- time from whether the player currently has a stack of it, regardless of
 --- whether the item being rotated away from was real or a preview.
 local function rotate_item(player, direction)
   if not storage.pending[player.index] then
@@ -617,10 +611,9 @@ local function place_ghost_once(context, tile, tile_name)
 end
 
 local function process_tile(context, tile)
-  -- A "don't touch" exclusion above the normal placement/underlay logic
-  -- below, not a placement-validity check: a protected tile is skipped
-  -- entirely (no ghost, no underlay) regardless of whether some other item
-  -- could otherwise validly go there.
+  -- A protected tile is skipped entirely (no ghost, no underlay) before the
+  -- placement and underlay logic below, even where some other item could
+  -- validly go there.
   if get_protected_tile_names()[tile.name] then
     return
   end
@@ -630,8 +623,8 @@ local function process_tile(context, tile)
     return
   end
 
-  -- Decided here rather than left to the engine check: the engine happily
-  -- re-places a tile over its own frozen variant (that's how thawing works),
+  -- Decided here instead of by the engine check: the engine re-places a tile
+  -- over its own frozen variant (that's how thawing works),
   -- and this also stops the underlay search below from treating a tile that
   -- needs nothing as blocked (see is_already_paved).
   if is_already_paved(tile, entry) then
@@ -673,8 +666,8 @@ local function process_tile(context, tile)
   place_ghost_once(context, tile, entry.result_name)
 end
 
---- Everything about one selection that is fixed across its tiles -- who is
---- paving what, where -- plus the two caches scoped to it. Threaded through
+--- Everything about one selection that is fixed across its tiles (who is
+--- paving what, where), plus the two caches scoped to it. Threaded through
 --- process_tile and the underlay search instead of a long parameter list.
 local function selection_context(player, event, entry, is_alt)
   local surface = event.surface
@@ -809,9 +802,9 @@ script.on_event(defines.events.on_player_cursor_stack_changed, function(event)
   end
 end)
 
--- Eagerly rebuilds (rather than just clearing) so an unresolvable name is
--- reported immediately when the setting is edited, instead of silently
--- waiting for the next paving action to trigger get_protected_tile_names.
+-- Rebuilds eagerly instead of just clearing, so an unresolvable name is
+-- reported when the setting is edited, not at the next paving action that
+-- triggers get_protected_tile_names.
 script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
   if event.setting == protected_tiles_setting then
     protected_tile_names = resolve_protected_tile_names()

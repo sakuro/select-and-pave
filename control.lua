@@ -814,6 +814,7 @@ end)
 script.on_event(defines.events.on_player_removed, function(event)
   storage.pending[event.player_index] = nil
   storage.last_used[event.player_index] = nil
+  storage.pending_announce[event.player_index] = nil
 end)
 
 script.on_event(defines.events.on_player_selected_area, function(event)

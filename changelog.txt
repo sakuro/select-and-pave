@@ -2,6 +2,7 @@
 Version: Unreleased
   Bugfixes:
     - Fix a pending announcement being left in saved data when a player is removed
+    - Translate Gleba in the Japanese description of the protected tiles setting
 ---------------------------------------------------------------------------------------------------
 Version: 0.6.0
 Date: 2026-07-24
